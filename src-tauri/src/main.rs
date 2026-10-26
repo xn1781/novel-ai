@@ -4463,6 +4463,74 @@ async fn update_or_record_section_context(
     Ok(())
 }
 
+async fn send_chat_completion(
+    client: &Client,
+    model: &str,
+    messages: Vec<ChatMessage<'_>>,
+    ollama_endpoint: Option<&str>,
+    max_retries: usize,
+    window: &tauri::Window,
+    job: &Job,
+    section_index: usize,
+    chunk_index: usize,
+) -> Result<String, String> {
+    let request = ChatRequest {
+        model,
+        messages,
+        stream: false,
+        think: false,
+        options: ChatOptions { temperature: 0.2 },
+    };
+
+    let endpoint = ollama_endpoint.ok_or("Ollama endpoint not configured")?;
+    let request_url = endpoint_url(endpoint, "api/chat").map_err(|error| error.to_string())?;
+
+    let mut last_failure = None;
+    for attempt in 0..=max_retries {
+        let response = client.post(request_url.clone()).json(&request).send().await;
+        match response {
+            Ok(response) if response.status().is_success() => {
+                match response.json::<ChatResponse>().await {
+                    Ok(response) if !response.message.content.trim().is_empty() => {
+                        return Ok(response.message.content.trim().to_string());
+                    }
+                    Ok(response) => {
+                        last_failure = Some(empty_translation_reason(&response, section_index));
+                    }
+                    Err(error) => {
+                        last_failure = Some(format!("reading translation for section {}: {}", section_index + 1, error));
+                    }
+                }
+            }
+            Ok(response) => {
+                let status = response.status();
+                let _text = response.text().await.unwrap_or_default();
+                let reason = format!("Ollama returned HTTP {} while translating section {}.", status, section_index + 1);
+                if !should_retry_http_status(status) {
+                    return Err(reason);
+                }
+                last_failure = Some(reason.clone());
+            }
+            Err(error) => {
+                let reason = format!("Ollama request failed for section {}: {}", section_index + 1, error);
+                last_failure = Some(reason.clone());
+            }
+        }
+        if attempt == max_retries {
+            break;
+        }
+        if let Some(failure) = &last_failure {
+            report_translation_retry(window, job, attempt + 1, failure).await?;
+        }
+    }
+    Err(last_failure.unwrap_or_else(|| {
+        format!(
+            "Translation request for section {} failed after automatic retries.",
+            section_index + 1
+        )
+    }))
+}
+
 #[tauri::command]
 async fn translate_job(
     app: AppHandle,
@@ -4477,12 +4545,12 @@ async fn translate_job(
         .map_err(|error| error.to_string())?;
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
     if job.model.trim().is_empty() {
-        return Err("Select an installed Ollama model before translating.".into());
+        return Err("Select a model before translating.".into());
     }
 
-    let auto_retry = load_settings(&app)
-        .map_err(|error| format!("Loading retry settings: {error}"))?
-        .auto_retry;
+    let settings = load_settings(&app)
+        .map_err(|error| format!("Loading settings: {error}"))?;
+    let auto_retry = settings.auto_retry;
     let max_retries = if auto_retry {
         MAX_TRANSLATION_RETRIES
     } else {
@@ -4554,93 +4622,28 @@ async fn translate_job(
         }
         for chunk_index in job.sections[index].translated_chunks.len()..source_chunks.len() {
             let chunk_started = Instant::now();
-            let request = ChatRequest {
-                model: &job.model,
-                messages: vec![
-                    ChatMessage {
-                        role: "system",
-                        content: system.clone(),
-                    },
-                    ChatMessage {
-                        role: "user",
-                        content: source_chunks[chunk_index].clone(),
-                    },
-                ],
-                stream: false,
-                think: false,
-                options: ChatOptions { temperature: 0.2 },
-            };
-            let request_url =
-                endpoint_url(&endpoint, "api/chat").map_err(|error| error.to_string())?;
-            let mut result = None;
-            let mut last_failure = None;
-            for attempt in 0..=max_retries {
-                let response = client.post(request_url.clone()).json(&request).send().await;
-                match response {
-                    Ok(response) if response.status().is_success() => {
-                        match response.json::<ChatResponse>().await {
-                            Ok(response) if !response.message.content.trim().is_empty() => {
-                                result = Some(response);
-                                break;
-                            }
-                            Ok(response) => {
-                                let reason = empty_translation_reason(&response, index);
-                                last_failure = Some(reason.clone());
-                                if attempt == max_retries {
-                                    break;
-                                }
-                                report_translation_retry(&window, &job, attempt + 1, &reason)
-                                    .await?;
-                            }
-                            Err(error) => {
-                                let reason = format!(
-                                    "reading translation for section {}: {error}",
-                                    index + 1
-                                );
-                                last_failure = Some(reason.clone());
-                                if attempt == max_retries {
-                                    break;
-                                }
-                                report_translation_retry(&window, &job, attempt + 1, &reason)
-                                    .await?;
-                            }
-                        }
-                    }
-                    Ok(response) => {
-                        let status = response.status();
-                        let reason = format!(
-                            "Ollama returned HTTP {status} while translating section {}.",
-                            index + 1
-                        );
-                        if !should_retry_http_status(status) {
-                            return Err(reason);
-                        }
-                        last_failure = Some(reason.clone());
-                        if attempt == max_retries {
-                            break;
-                        }
-                        report_translation_retry(&window, &job, attempt + 1, &reason).await?;
-                    }
-                    Err(error) => {
-                        let reason =
-                            format!("Ollama request failed for section {}: {error}", index + 1);
-                        last_failure = Some(reason.clone());
-                        if attempt == max_retries {
-                            break;
-                        }
-                        report_translation_retry(&window, &job, attempt + 1, &reason).await?;
-                    }
-                }
-            }
-            let result = result.ok_or_else(|| {
-                last_failure.unwrap_or_else(|| {
-                    format!(
-                        "Translation request for section {} failed after automatic retries.",
-                        index + 1
-                    )
-                })
-            })?;
-            let mut translated_content = result.message.content.trim().to_string();
+            let messages = vec![
+                ChatMessage {
+                    role: "system",
+                    content: system.clone(),
+                },
+                ChatMessage {
+                    role: "user",
+                    content: source_chunks[chunk_index].clone(),
+                },
+            ];
+            let mut translated_content = send_chat_completion(
+                &client,
+                &job.model,
+                messages,
+                Some(&endpoint),
+                max_retries,
+                &window,
+                &job,
+                index,
+                chunk_index,
+            )
+            .await?;
             if interactive {
                 let question_id = Uuid::new_v4().to_string();
                 window
@@ -4913,8 +4916,11 @@ async fn retranslate_job_sections(
         model.trim().to_string()
     };
     if selected_model.is_empty() {
-        return Err("Select an installed Ollama model before retranslating.".into());
+        return Err("Select a model before retranslating.".into());
     }
+    
+    let _app_settings = load_settings(&app).map_err(|error| error.to_string())?;
+
     for section_index in section_indices {
         let source_text = job.sections[section_index].text.clone();
         let settings = load_settings(&app).map_err(|error| error.to_string())?;
@@ -4964,61 +4970,28 @@ async fn retranslate_job_sections(
         let source_chunks = split_translation_chunks(&source_text, 3000);
         let mut translated_chunks = Vec::with_capacity(source_chunks.len());
         for (chunk_index, source_chunk) in source_chunks.iter().enumerate() {
-            let request = ChatRequest {
-                model: &selected_model,
-                messages: vec![
-                    ChatMessage {
-                        role: "system",
-                        content: system.clone(),
-                    },
-                    ChatMessage {
-                        role: "user",
-                        content: source_chunk.clone(),
-                    },
-                ],
-                stream: false,
-                think: false,
-                options: ChatOptions { temperature: 0.2 },
-            };
-            let url = endpoint_url(&endpoint, "api/chat").map_err(|error| error.to_string())?;
-            let mut translated = None;
-            let mut failure = None;
-            for attempt in 0..=max_retries {
-                match client.post(url.clone()).json(&request).send().await {
-                    Ok(response) if response.status().is_success() => {
-                        match response.json::<ChatResponse>().await {
-                            Ok(response) if !response.message.content.trim().is_empty() => {
-                                translated = Some(response.message.content.trim().to_string());
-                                break;
-                            }
-                            Ok(response) => {
-                                failure = Some(empty_translation_reason(&response, section_index))
-                            }
-                            Err(error) => {
-                                failure = Some(format!("Reading retranslation response: {error}"))
-                            }
-                        }
-                    }
-                    Ok(response) => {
-                        let status = response.status();
-                        let detail = response.text().await.unwrap_or_default();
-                        failure = Some(format!("Ollama returned HTTP {status}: {}", detail.trim()));
-                    }
-                    Err(error) => failure = Some(format!("Ollama request failed: {error}")),
-                }
-                if attempt < max_retries {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-            let mut translated_content = translated.ok_or_else(|| {
-                failure.unwrap_or_else(|| {
-                    format!(
-                        "Retranslation failed for section {} chunk {}.",
-                        section_index + 1,
-                        chunk_index + 1
-                    )
-                })
-            })?;
+            let messages = vec![
+                ChatMessage {
+                    role: "system",
+                    content: system.clone(),
+                },
+                ChatMessage {
+                    role: "user",
+                    content: source_chunk.clone(),
+                },
+            ];
+            let mut translated_content = send_chat_completion(
+                &client,
+                &selected_model,
+                messages,
+                Some(&endpoint),
+                max_retries,
+                &window,
+                &job,
+                section_index,
+                chunk_index,
+            )
+            .await?;
             if interactive {
                 let question_id = Uuid::new_v4().to_string();
                 window

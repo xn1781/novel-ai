@@ -27,15 +27,14 @@ let index, key, catalog = [], book, rendition, activeId, toc = [], progressTimer
 let currentSectionIndex = null;
 let chapters = [], pendingLocation, scrollContainer, scrollListener, loadingBook = false, advancing = false;
 let scrolledToEnd = false, scrollingForward = false, lastScrollTop = 0, seekingChapter = false;
-let mobileChromeTimer;
+let mobileChromeTimer, previousTapAt = 0, mobileHintTimer;
 
 function setMobileChrome(hidden, autoHide = false) {
   const isMobileReader = document.body.classList.contains('reader-active') && matchMedia('(max-width: 600px)').matches;
   document.body.classList.toggle('reader-chrome-hidden', isMobileReader && hidden);
-  $('mobile-chrome-reveal').hidden = !isMobileReader || !hidden;
   clearTimeout(mobileChromeTimer);
   if (isMobileReader && !hidden && autoHide) {
-    mobileChromeTimer = setTimeout(() => setMobileChrome(true), 3500);
+    mobileChromeTimer = setTimeout(() => setMobileChrome(true), 4000);
   }
 }
 
@@ -85,7 +84,23 @@ function show(view) {
   document.body.classList.toggle('reader-active', view === 'reader');
   document.body.classList.remove('reader-chrome-hidden');
   clearTimeout(mobileChromeTimer);
-  setMobileChrome(view === 'reader');
+  if (view === 'reader') {
+    // Show chrome briefly on entry, then auto-hide after 4 s
+    setMobileChrome(false, true);
+    // Show a one-time hint on mobile so the user knows how to recall chrome
+    if (matchMedia('(max-width: 600px)').matches && !localStorage.getItem('reader-hint-seen')) {
+      const hint = document.getElementById('mobile-chrome-hint');
+      if (hint) {
+        hint.hidden = false;
+        clearTimeout(mobileHintTimer);
+        mobileHintTimer = setTimeout(() => {
+          hint.classList.add('fade-out');
+          setTimeout(() => { hint.hidden = true; hint.classList.remove('fade-out'); }, 650);
+          localStorage.setItem('reader-hint-seen', '1');
+        }, 3500);
+      }
+    }
+  }
   $('library-button').hidden = view !== 'reader';
   $('settings-button').hidden = view === 'unlock';
   $('header-title').textContent = view === 'reader' ? catalog.find(item => item.id === activeId)?.title || 'Reader' : 'My Library';
@@ -442,7 +457,27 @@ async function openBook(id, locationOverride, savedBeforeSwitch = false) {
       spread: 'none', allowScriptedContent: false,
     });
     const fontCss = readerFontCss();
-    rendition.hooks.content.register(contents => contents.addStylesheetCss(fontCss, 'reader-font-faces'));
+    rendition.hooks.content.register(contents => {
+      contents.addStylesheetCss(fontCss, 'reader-font-faces');
+      const locationHref = contents.section?.href?.split('#')[0];
+      const title = toc.filter(item => item.href?.split('#')[0] === locationHref).at(-1)?.label;
+      if (title) {
+        const normalize = value => value.replace(/[\s\p{P}\p{S}]/gu, '').toLocaleLowerCase();
+        const heading = [...contents.document.querySelectorAll('h1,h2,h3,h4,h5,h6')]
+          .find(element => normalize(element.textContent) === normalize(title));
+        if (heading) heading.style.display = 'none';
+      }
+      contents.document.addEventListener('touchend', event => {
+        const now = Date.now();
+        if (now - previousTapAt < 350) {
+          event.preventDefault();
+          setMobileChrome(!document.body.classList.contains('reader-chrome-hidden'), true);
+          previousTapAt = 0;
+        } else {
+          previousTapAt = now;
+        }
+      }, { passive: false });
+    });
     rendition.on('relocated', location => {
       updateLocation(location);
     });
@@ -525,7 +560,6 @@ document.addEventListener('keydown', event => {
 });
 $('prev-button').addEventListener('click', () => navigate('prev'));
 $('next-button').addEventListener('click', () => navigate('next'));
-$('mobile-chrome-reveal').addEventListener('click', () => setMobileChrome(false, true));
 for (const [element, property] of [['font', 'font'], ['font-size', 'fontSize'], ['line-spacing', 'lineSpacing'], ['width', 'width']]) {
   $(element).addEventListener('input', event => { settings[property] = event.target.value; applySettings(); });
 }
@@ -572,7 +606,6 @@ window.addEventListener('resize', () => {
       setMobileChrome(document.body.classList.contains('reader-chrome-hidden'));
     } else {
       document.body.classList.remove('reader-chrome-hidden');
-      $('mobile-chrome-reveal').hidden = true;
     }
   }
   clearTimeout(resizeTimer);

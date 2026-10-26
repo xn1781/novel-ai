@@ -1,4 +1,10 @@
+/* Chapter title in topbar — desktop hidden, mobile shown */
+.reader-topbar-chapter {
+  display: none;
+}
+
 @media (max-width: 600px) {
+  /* Lock body when reading to prevent rubber-band scrolling */
   body.reader-active {
     position: fixed;
     inset: 0;
@@ -14,41 +20,111 @@
     overflow: hidden;
   }
 
-  body.reader-active .topbar {
-    position: fixed;
-    inset: 0 0 auto;
-    z-index: 6;
-    transition: transform 180ms ease;
-  }
-
-  body.reader-active.reader-chrome-hidden .topbar {
-    transform: translateY(-110%);
-  }
-
+  /* Reader view fills entire screen — toolbar/footer overlay it */
   body.reader-active .reader-view {
     position: fixed;
     inset: 0;
     width: 100%;
     height: 100dvh;
-    padding-top: 60px;
     overflow: hidden;
-    transition: padding-top 180ms ease;
+    display: block; /* override flex so #book-area can fill via absolute */
   }
 
-  body.reader-active.reader-chrome-hidden .reader-view {
-    padding-top: 0;
+  /* Top bar slides off the top when chrome is hidden */
+  body.reader-active .topbar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 6;
+    transition: transform 180ms ease, visibility 180ms ease;
   }
 
+  body.reader-active.reader-chrome-hidden .topbar {
+    transform: translateY(-100%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Brand area shows two-line layout: title + chapter subtitle */
+  body.reader-active .brand {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 5px;
+    max-width: 76%;
+  }
+
+  body.reader-active .brand-icon {
+    grid-row: 1 / span 2;
+  }
+
+  body.reader-active .reader-topbar-chapter {
+    display: block;
+    grid-column: 2;
+    color: var(--ui-muted);
+    font-size: 11px;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Secondary toolbar (chapters + progress) slides under topbar */
+  body.reader-active .reader-toolbar {
+    position: fixed;
+    z-index: 6;
+    top: 60px;
+    left: 0;
+    right: 0;
+    min-height: 42px;
+    background: var(--ui-bg);
+    transition: transform 180ms ease, visibility 180ms ease;
+  }
+
+  body.reader-active.reader-chrome-hidden .reader-toolbar {
+    transform: translateY(-160%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Footer with prev/next slides in from the bottom */
   body.reader-active .reader-footer {
-    display: none;
+    position: fixed;
+    z-index: 6;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 48px;
+    background: var(--ui-bg);
+    border-top: 1px solid var(--ui-border);
+    transition: transform 180ms ease, visibility 180ms ease;
   }
 
+  body.reader-active.reader-chrome-hidden .reader-footer {
+    transform: translateY(110%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  body.reader-active .reader-footer button {
+    flex: 1;
+    min-height: 44px;
+    color: var(--ui-fg);
+    background: transparent;
+    border: 0;
+  }
+
+  /* Book area fills the whole screen — all chrome is overlaid */
   body.reader-active #book-area {
+    position: absolute;
+    inset: 0;
     width: 100%;
     max-width: 100%;
+    height: 100dvh;
     min-height: 0;
     overscroll-behavior-y: contain;
     touch-action: pan-y;
+    margin: 0;
   }
 
   body.reader-active #book-area .epub-container {
@@ -58,31 +134,33 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .mobile-chrome-reveal {
+  /* Hint shown on first entry so users know how to reveal chrome */
+  body.reader-active .mobile-chrome-hint {
     position: fixed;
-    z-index: 7;
-    top: env(safe-area-inset-top);
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
     left: 50%;
-    width: 52px;
-    height: 25px;
     transform: translateX(-50%);
-    border: 0;
-    border-radius: 0 0 12px 12px;
-    background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
-    color: var(--ui-fg);
-    font-size: 19px;
-    line-height: 18px;
-    opacity: 0.72;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    z-index: 7;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 600ms ease;
   }
-}
 
-.mobile-chrome-reveal[hidden] {
-  display: none;
+  body.reader-active .mobile-chrome-hint.fade-out {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   body.reader-active .topbar,
-  body.reader-active .reader-view {
+  body.reader-active .reader-toolbar,
+  body.reader-active .reader-footer {
     transition: none;
   }
 }
