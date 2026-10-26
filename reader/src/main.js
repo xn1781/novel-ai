@@ -7,6 +7,7 @@ import { layoutFor } from './layout.js';
 import './style.css';
 import './scrollbar.css';
 import './interface.css';
+import './mobile-reader.css';
 
 const $ = id => document.getElementById(id);
 const root = import.meta.env.BASE_URL;
@@ -26,6 +27,17 @@ let index, key, catalog = [], book, rendition, activeId, toc = [], progressTimer
 let currentSectionIndex = null;
 let chapters = [], pendingLocation, scrollContainer, scrollListener, loadingBook = false, advancing = false;
 let scrolledToEnd = false, scrollingForward = false, lastScrollTop = 0, seekingChapter = false;
+let mobileChromeTimer;
+
+function setMobileChrome(hidden, autoHide = false) {
+  const isMobileReader = document.body.classList.contains('reader-active') && matchMedia('(max-width: 600px)').matches;
+  document.body.classList.toggle('reader-chrome-hidden', isMobileReader && hidden);
+  $('mobile-chrome-reveal').hidden = !isMobileReader || !hidden;
+  clearTimeout(mobileChromeTimer);
+  if (isMobileReader && !hidden && autoHide) {
+    mobileChromeTimer = setTimeout(() => setMobileChrome(true), 3500);
+  }
+}
 
 function updateNavigationButtons() {
   const chapterMode = settings.flow === 'scrolled-chapter';
@@ -70,6 +82,10 @@ function toast(message) {
 
 function show(view) {
   for (const name of ['unlock', 'library', 'reader']) $(`${name}-view`).hidden = name !== view;
+  document.body.classList.toggle('reader-active', view === 'reader');
+  document.body.classList.remove('reader-chrome-hidden');
+  clearTimeout(mobileChromeTimer);
+  setMobileChrome(view === 'reader');
   $('library-button').hidden = view !== 'reader';
   $('settings-button').hidden = view === 'unlock';
   $('header-title').textContent = view === 'reader' ? catalog.find(item => item.id === activeId)?.title || 'Reader' : 'My Library';
@@ -189,9 +205,13 @@ function attachScroll() {
   detachScroll();
   scrollContainer = getScrollContainer();
   if (!scrollContainer) return;
+  scrollContainer.style.touchAction = 'pan-y';
+  scrollContainer.style.overscrollBehaviorY = 'contain';
+  scrollContainer.style.webkitOverflowScrolling = 'touch';
   lastScrollTop = scrollContainer.scrollTop;
   scrollListener = () => {
     if (loadingBook || settings.flow === 'paginated') return;
+    if (matchMedia('(max-width: 600px)').matches) setMobileChrome(true);
     const container = getScrollContainer();
     if (settings.flow === 'scrolled-continuous' && !seekingChapter) {
       scrollingForward = container.scrollTop > lastScrollTop + 1;
@@ -505,6 +525,7 @@ document.addEventListener('keydown', event => {
 });
 $('prev-button').addEventListener('click', () => navigate('prev'));
 $('next-button').addEventListener('click', () => navigate('next'));
+$('mobile-chrome-reveal').addEventListener('click', () => setMobileChrome(false, true));
 for (const [element, property] of [['font', 'font'], ['font-size', 'fontSize'], ['line-spacing', 'lineSpacing'], ['width', 'width']]) {
   $(element).addEventListener('input', event => { settings[property] = event.target.value; applySettings(); });
 }
@@ -546,6 +567,14 @@ $('reset-settings').addEventListener('click', () => {
   changeLayout(settings.flow, true);
 });
 window.addEventListener('resize', () => {
+  if (document.body.classList.contains('reader-active')) {
+    if (matchMedia('(max-width: 600px)').matches) {
+      setMobileChrome(document.body.classList.contains('reader-chrome-hidden'));
+    } else {
+      document.body.classList.remove('reader-chrome-hidden');
+      $('mobile-chrome-reveal').hidden = true;
+    }
+  }
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => { if (rendition) rendition.resize(); }, 200);
 });

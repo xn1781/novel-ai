@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
+import { pagesBase } from './src/pages-base.js';
 
 export default defineConfig({
-  base: process.env.GITHUB_REPOSITORY
-    ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
-    : '/',
+  base: pagesBase(process.env.GITHUB_REPOSITORY),
 });

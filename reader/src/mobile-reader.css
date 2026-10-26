@@ -1,0 +1,88 @@
+@media (max-width: 600px) {
+  body.reader-active {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body.reader-active main {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.reader-active .topbar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 6;
+    transition: transform 180ms ease;
+  }
+
+  body.reader-active.reader-chrome-hidden .topbar {
+    transform: translateY(-110%);
+  }
+
+  body.reader-active .reader-view {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    padding-top: 60px;
+    overflow: hidden;
+    transition: padding-top 180ms ease;
+  }
+
+  body.reader-active.reader-chrome-hidden .reader-view {
+    padding-top: 0;
+  }
+
+  body.reader-active .reader-footer {
+    display: none;
+  }
+
+  body.reader-active #book-area {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+
+  body.reader-active #book-area .epub-container {
+    max-width: 100%;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-chrome-reveal {
+    position: fixed;
+    z-index: 7;
+    top: env(safe-area-inset-top);
+    left: 50%;
+    width: 52px;
+    height: 25px;
+    transform: translateX(-50%);
+    border: 0;
+    border-radius: 0 0 12px 12px;
+    background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+    color: var(--ui-fg);
+    font-size: 19px;
+    line-height: 18px;
+    opacity: 0.72;
+  }
+}
+
+.mobile-chrome-reveal[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.reader-active .topbar,
+  body.reader-active .reader-view {
+    transition: none;
+  }
+}
