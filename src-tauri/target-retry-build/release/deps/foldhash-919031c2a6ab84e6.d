@@ -1,0 +1,11 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\foldhash-919031c2a6ab84e6.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\fast.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\quality.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\seed.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\convenience.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libfoldhash-919031c2a6ab84e6.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\fast.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\quality.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\seed.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\convenience.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libfoldhash-919031c2a6ab84e6.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\fast.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\quality.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\seed.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\convenience.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\fast.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\quality.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\seed.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foldhash-0.2.0\src\convenience.rs:

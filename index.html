@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f3ef" />
+    <title>Novel Translator</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">N</div>
+        <div>
+          <p class="eyebrow">LOCAL BOOK WORKSPACE</p>
+          <h1>Novel Translator</h1>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">☾</button>
+        <div class="local-status"><span></span> Runs locally with Ollama</div>
+      </header>
+
+      <nav class="tab-nav" aria-label="Main navigation">
+        <button class="tab-button active" data-tab="translate" type="button">Translate</button>
+        <button class="tab-button" data-tab="library" type="button">Library</button>
+        <button class="tab-button" data-tab="raw" type="button">Find RAW</button>
+        <button class="tab-button" data-tab="queue" type="button">Queue <span id="queue-count" class="nav-count">0</span></button>
+        <button class="tab-button" data-tab="completed" type="button">Completed <span id="completed-count" class="nav-count">0</span></button>
+        <button class="tab-button" data-tab="glossary" type="button">Glossary</button>
+        <button class="tab-button" data-tab="settings" type="button">Settings</button>
+      </nav>
+
+      <div id="tab-translate" class="tab-panel active">
+      <section class="intro">
+        <p class="eyebrow">KOREAN &amp; JAPANESE → ENGLISH</p>
+        <h2>Bring the story across.<br /><em>Keep its voice.</em></h2>
+        <p class="intro-copy">Translate a book with your own local model, shaped by the genre, tone, and guidance you choose.</p>
+      </section>
+
+      <section class="workspace">
+        <div class="panel book-panel">
+          <div class="section-heading">
+            <div><p class="eyebrow">01 / SOURCE</p><h3>Your book</h3></div>
+            <button id="choose-files" class="button button-secondary" type="button">＋ Add files</button>
+          </div>
+          <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Choose source files">
+            <div class="upload-icon" aria-hidden="true">↑</div>
+            <strong>Choose a book to translate</strong>
+            <span>EPUB, PDF, or multiple TXT files</span>
+            <button id="browse-files" class="text-button" type="button">Browse files</button>
+          </div>
+          <div id="file-list" class="file-list" aria-live="polite"></div>
+          <div id="job-list-wrap" class="saved-jobs" hidden>
+            <label for="saved-jobs">Continue a saved translation</label>
+            <div class="saved-job-controls">
+              <select id="saved-jobs"></select>
+              <button id="load-job" class="button button-secondary" type="button">Load</button>
+              <button id="delete-saved-job" class="button button-secondary" type="button">Remove</button>
+            </div>
+          </div>
+          <div class="source-settings">
+            <label>Translate from
+              <select id="source-language">
+                <option value="Auto-detect">Auto-detect</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Korean">Korean</option>
+              </select>
+            </label>
+            <label>Output format
+              <select id="output-format">
+                <option value="epub">EPUB</option>
+                <option value="txt">TXT</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint">Selected TXT files are combined in the order shown above.</p>
+        </div>
+
+        <div class="panel direction-panel">
+          <div class="section-heading">
+            <div><p class="eyebrow">02 / DIRECTION</p><h3>Set the feeling</h3></div>
+          </div>
+          <label class="field-label" for="genre">Story genre</label>
+          <input id="genre" type="text" maxlength="120" placeholder="e.g. historical fantasy, cozy mystery" />
+          <fieldset class="tone-fieldset">
+            <legend class="field-label">Translation tone <span>Choose any that fit</span></legend>
+            <div class="tone-options">
+              <label class="tone-chip"><input type="checkbox" value="Natural and fluent" /><span>Natural</span></label>
+              <label class="tone-chip"><input type="checkbox" value="Literary and evocative" /><span>Literary</span></label>
+              <label class="tone-chip"><input type="checkbox" value="Faithful and precise" /><span>Faithful</span></label>
+              <label class="tone-chip"><input type="checkbox" value="Warm and intimate" /><span>Warm</span></label>
+              <label class="tone-chip"><input type="checkbox" value="Tense and dramatic" /><span>Dramatic</span></label>
+              <label class="tone-chip"><input type="checkbox" value="Light and witty" /><span>Witty</span></label>
+            </div>
+          </fieldset>
+          <label class="field-label" for="instructions">Specific instructions <span>Optional</span></label>
+          <textarea id="instructions" rows="4" maxlength="3000" placeholder="Character names, honorifics, terminology, things to preserve…"></textarea>
+          <label class="interactive-toggle"><input id="interactive-translation" type="checkbox" /> Ask me to review each manual translation chunk <span>30-second auto-skip; queue jobs stay automatic</span></label>
+          <div class="model-row">
+            <label for="model">Ollama model</label>
+            <button id="refresh-models" class="text-button" type="button">Refresh</button>
+          </div>
+          <select id="model"><option value="">Connect to Ollama to load models</option></select>
+          <p id="ollama-status" class="hint">Ollama address: http://localhost:11434</p>
+        </div>
+      </section>
+
+      <section class="action-bar">
+        <div class="progress-area">
+          <div class="progress-heading">
+            <div id="progress-label">Ready when you are</div>
+            <div id="eta-label">ETA appears after the first chunk</div>
+          </div>
+          <div class="progress-track"><div id="progress-fill"></div></div>
+          <p id="status-message" role="status">Your files stay on this device.</p>
+        </div>
+        <div class="actions">
+          <button id="translate" class="button button-primary" type="button">Translate book <span aria-hidden="true">→</span></button>
+          <button id="export" class="button button-secondary" type="button" hidden>Save translated book</button>
+        </div>
+      </section>
+      <section id="recommendations-panel" class="panel recommendations-panel" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">AFTER TRANSLATION</p><h3>Glossary recommendations</h3></div>
+          <button id="generate-recommendations" class="button button-secondary" type="button">Generate recommendations</button>
+        </div>
+        <p class="hint">Suggested names and recurring terms are not saved until you add them to the global glossary.</p>
+        <p id="recommendations-message" class="inline-message" role="status"></p>
+        <div id="recommendations-list" class="card-list"></div>
+      </section>
+      <dialog id="interactive-translation-dialog">
+        <form method="dialog" class="interactive-dialog">
+          <p class="eyebrow">TRANSLATION REVIEW</p>
+          <h3 id="interactive-question-title">Review translation</h3>
+          <p id="interactive-question-source" class="interactive-dialog-text"></p>
+          <textarea id="interactive-question-answer" rows="5"></textarea>
+          <p id="interactive-question-timer" class="hint"></p>
+          <div class="actions">
+            <button id="interactive-skip" class="button button-secondary" type="button">Skip / use suggestion</button>
+            <button id="interactive-use" class="button button-primary" type="submit">Use my translation</button>
+          </div>
+        </form>
+      </dialog>
+      </div>
+
+      <section id="tab-library" class="tab-panel">
+        <div class="page-heading">
+          <div><p class="eyebrow">YOUR BOOKS</p><h2>Library</h2><p class="intro-copy">Keep your novels together and send them to the translation queue when you’re ready. Queueing uses the genre, tone, instructions, and model selected on the Translate tab.</p></div>
+          <button id="import-library" class="button button-primary" type="button">＋ Add novels</button>
+        </div>
+        <div class="library-search-panel">
+          <label for="library-search">Search your library</label>
+          <div class="search-field">
+            <input id="library-search" type="search" placeholder="Search title, author, tags, synopsis…" />
+          </div>
+          <div class="library-filters">
+            <label for="library-publication-filter">Publication <select id="library-publication-filter"><option value="">All</option><option>Unknown</option><option>Ongoing</option><option>Completed</option><option>Hiatus</option><option>Dropped</option></select></label>
+            <label for="library-translation-filter">Translation <select id="library-translation-filter"><option value="">All</option><option>Not translated</option><option>Queued</option><option>Translating</option><option>Failed</option><option>Completed</option></select></label>
+            <label for="library-language-filter">Language <select id="library-language-filter"><option value="">All</option><option>Japanese</option><option>Korean</option></select></label>
+          </div>
+        </div>
+        <p id="library-message" class="inline-message" role="status"></p>
+        <div id="library-list" class="card-list"></div>
+        <div id="library-empty" class="empty-state">Your library is empty. Add an EPUB, PDF, or one or more TXT files to get started.</div>
+      </section>
+
+      <section id="tab-raw" class="tab-panel">
+        <div class="page-heading"><div><p class="eyebrow">ONLINE SOURCE</p><h2>Find RAW novels</h2><p class="intro-copy">Search the RAW catalogue and import a decrypted EPUB into your Library.</p></div></div>
+        <form id="raw-search-form" class="raw-search-form">
+          <label for="raw-search-query">Search the RAW catalogue</label>
+          <div class="raw-search-row">
+            <div class="search-field raw-autocomplete">
+              <input id="raw-search-query" type="search" maxlength="200" placeholder="Enter a title or keyword…" role="combobox" aria-autocomplete="list" aria-controls="raw-suggestions" aria-expanded="false" autocomplete="off" />
+              <div id="raw-suggestions" class="raw-suggestions" role="listbox" aria-label="Suggested RAW titles" hidden></div>
+            </div>
+            <button class="button button-primary" type="submit">Search RAW</button>
+          </div>
+        </form>
+        <details id="raw-advanced" class="raw-advanced panel">
+          <summary>Advanced search filters</summary>
+          <form id="raw-advanced-form">
+            <div class="raw-advanced-grid">
+              <label>Text search<input name="query" type="text" maxlength="200" list="raw-advanced-title-options" placeholder="Title, alternate title, description…" autocomplete="off" /></label>
+              <label>Author<input name="author" type="text" maxlength="200" /></label>
+              <label>Uploader<input name="uploader" type="text" maxlength="200" /></label>
+              <label>Translator group<input name="translator_group" type="text" maxlength="200" /></label>
+              <label>Country<input name="country" type="text" maxlength="200" /></label>
+              <label>Year from<input name="year_from" type="number" min="0" max="9999" /></label>
+              <label>Year to<input name="year_to" type="number" min="0" max="9999" /></label>
+              <label>Status<select name="status"><option value="">Any status</option><option value="ongoing">Ongoing</option><option value="completed">Completed</option><option value="hiatus">Hiatus</option><option value="dropped">Dropped</option></select></label>
+              <label>Language<select name="language"><option value="">Any language</option><option value="en">EN</option><option value="es">ES</option><option value="ko">KO</option><option value="ja">JA</option><option value="zh">ZH</option></select></label>
+              <label>Title display<select name="view_lang"><option value="en">EN</option><option value="ko">KO</option></select></label>
+              <label>Read mode<select name="read_only"><option value="any">Any read mode</option><option value="yes">Read only</option><option value="no">Downloadable</option></select></label>
+              <label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option><option value="year_desc">Year descending</option><option value="year_asc">Year ascending</option></select></label>
+            </div>
+            <div class="raw-advanced-flags">
+              <label><input name="has_images" type="checkbox" /> Image chapters</label>
+              <label><input name="has_audiobook" type="checkbox" /> Has audiobook</label>
+            </div>
+            <div class="raw-advanced-grid raw-filter-grid">
+              <fieldset class="raw-filter-block"><legend>Tags include</legend><label>Match<select name="tag_mode"><option value="and">All (AND)</option><option value="or">Any (OR)</option></select></label><div class="raw-tag-editor" data-raw-filter="tags_include" data-options="raw-tag-options"><input type="text" list="raw-tag-options" placeholder="Type a tag and press Enter" aria-label="Add included tag" maxlength="80" /><div class="raw-filter-pills"></div></div></fieldset>
+              <fieldset class="raw-filter-block"><legend>Tags exclude</legend><div class="raw-tag-editor" data-raw-filter="tags_exclude" data-options="raw-tag-options"><input type="text" list="raw-tag-options" placeholder="Type a tag and press Enter" aria-label="Add excluded tag" maxlength="80" /><div class="raw-filter-pills"></div></div></fieldset>
+              <fieldset class="raw-filter-block"><legend>Novelpia tags include</legend><label>Match<select name="source_tag_mode"><option value="and">All (AND)</option><option value="or">Any (OR)</option></select></label><div class="raw-tag-editor" data-raw-filter="source_tags_include" data-options="raw-source-tag-options"><input type="text" list="raw-source-tag-options" placeholder="Type a source tag and press Enter" aria-label="Add included Novelpia tag" maxlength="80" /><div class="raw-filter-pills"></div></div></fieldset>
+              <fieldset class="raw-filter-block"><legend>Novelpia tags exclude</legend><div class="raw-tag-editor" data-raw-filter="source_tags_exclude" data-options="raw-source-tag-options"><input type="text" list="raw-source-tag-options" placeholder="Type a source tag and press Enter" aria-label="Add excluded Novelpia tag" maxlength="80" /><div class="raw-filter-pills"></div></div></fieldset>
+            </div>
+            <fieldset class="raw-filter-block"><legend>Genres include</legend><label>Match<select name="genre_mode"><option value="and">All (AND)</option><option value="or">Any (OR)</option></select></label><div id="raw-genres-include" class="raw-genre-grid"></div></fieldset>
+            <fieldset class="raw-filter-block"><legend>Genres exclude</legend><div id="raw-genres-exclude" class="raw-genre-grid"></div></fieldset>
+            <div class="raw-advanced-actions"><button class="button button-primary" type="submit">Search with filters</button><button id="raw-advanced-reset" class="button button-secondary" type="button">Reset filters</button></div>
+          </form>
+          <datalist id="raw-advanced-title-options"></datalist><datalist id="raw-tag-options"></datalist><datalist id="raw-source-tag-options"></datalist>
+        </details>
+        <p id="raw-message" class="inline-message" role="status"></p>
+        <div id="raw-results" class="card-list"></div>
+        <button id="raw-next" class="button button-secondary" type="button" hidden>Next page</button>
+        <div id="raw-details" class="panel raw-details" hidden></div>
+      </section>
+
+      <section id="tab-queue" class="tab-panel">
+        <div class="page-heading">
+          <div><p class="eyebrow">TRANSLATION WORKFLOW</p><h2>Queue</h2><p class="intro-copy">Translations run one at a time. Your progress is saved locally so you can resume later.</p></div>
+          <button id="start-queue" class="button button-primary" type="button">Start queue <span aria-hidden="true">→</span></button>
+        </div>
+        <p id="queue-message" class="inline-message" role="status"></p>
+        <div id="queue-list" class="card-list"></div>
+        <div id="queue-empty" class="empty-state">Nothing in the queue yet. Add a novel in your library and choose Translate.</div>
+      </section>
+
+      <section id="tab-completed" class="tab-panel">
+        <div class="page-heading">
+          <div><p class="eyebrow">FINISHED TRANSLATIONS</p><h2>Completed</h2><p class="intro-copy">Download finished novels without mixing them into the active translation queue.</p></div>
+        </div>
+        <p id="completed-message" class="inline-message" role="status"></p>
+        <div id="completed-list" class="card-list"></div>
+        <div id="completed-empty" class="empty-state">No completed novels yet.</div>
+      </section>
+
+      <section id="tab-glossary" class="tab-panel">
+        <div class="page-heading">
+          <div><p class="eyebrow">CONSISTENT TERMINOLOGY</p><h2>Glossary</h2><p class="intro-copy">Set preferred English spellings for names, places, and special terms. Matching entries are included in translation prompts.</p></div>
+        <button id="export-glossary" class="button button-secondary" type="button">Export plain text</button>
+        </div>
+        <div class="panel glossary-editor">
+          <input id="glossary-id" type="hidden" />
+          <div class="glossary-fields">
+            <label>Source language
+              <select id="glossary-language"><option value="Japanese">Japanese</option><option value="Korean">Korean</option></select>
+            </label>
+            <label>Source term<input id="glossary-source" type="text" maxlength="160" placeholder="e.g. character or place name" /></label>
+            <label>Preferred English<input id="glossary-target" type="text" maxlength="160" placeholder="How it should be translated" /></label>
+            <label>Character gender<input id="glossary-gender" type="text" maxlength="80" placeholder="Optional: female, male, nonbinary" /></label>
+          </div>
+          <label class="field-label" for="glossary-note">Note <span>Optional context</span></label>
+          <input id="glossary-note" type="text" maxlength="240" placeholder="e.g. retain honorific, title, or gender" />
+          <div class="editor-actions"><button id="cancel-glossary-edit" class="button button-secondary" type="button" hidden>Cancel</button><button id="save-glossary" class="button button-primary" type="button">Add term</button></div>
+        </div>
+        <p id="glossary-message" class="inline-message" role="status"></p>
+        <div id="glossary-list" class="card-list"></div>
+        <div id="glossary-empty" class="empty-state">No glossary terms yet. Add a source term and the English translation you prefer.</div>
+      </section>
+
+      <section id="tab-settings" class="tab-panel">
+        <div class="page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2><p class="intro-copy">Configure your local Ollama connection and defaults for new translations.</p></div></div>
+        <div class="panel settings-panel">
+          <label class="field-label" for="settings-endpoint">Ollama address</label>
+          <input id="settings-endpoint" type="text" maxlength="300" placeholder="http://localhost:11434" />
+          <p class="hint">This should point to the Ollama server that hosts your models.</p>
+          <label class="field-label prompt-label" for="settings-prompt">Main translation prompt</label>
+          <textarea id="settings-prompt" rows="7" maxlength="8000"></textarea>
+          <p class="hint">Available placeholders: <code>{source_language}</code>, <code>{genre}</code>, <code>{tones}</code>, <code>{instructions}</code>, <code>{context}</code>, and <code>{glossary}</code>. Novel story context is appended automatically if <code>{context}</code> is omitted.</p>
+          <label class="theme-setting"><input id="settings-dark-mode" type="checkbox" /> Use dark appearance</label>
+          <label class="theme-setting"><input id="settings-auto-retry" type="checkbox" /> Automatically retry failed Ollama requests</label>
+          <label class="theme-setting"><input id="settings-interactive-translation" type="checkbox" /> Ask for translation choices during manual and chapter retranslation</label>
+          <p class="hint">This never affects queue jobs. When enabled, the model's suggestion pauses for your choice with a 30-second auto-skip.</p>
+          <p class="hint">Retries temporary connection, server, rate-limit, and incomplete-response failures up to 3 times, with increasing delays. Missing models and other client errors are reported immediately.</p>
+          <label class="field-label prompt-label" for="settings-context-limit">Story context facts to keep</label>
+          <input id="settings-context-limit" type="number" min="1" max="200" step="1" />
+          <p class="hint">After each chapter, Ollama curates the continuity context down to this many durable facts. Lower values keep prompts shorter.</p>
+          <div class="settings-fields">
+            <label>Default source language
+              <select id="settings-language"><option value="Japanese">Japanese</option><option value="Korean">Korean</option></select>
+            </label>
+            <label>Default output
+              <select id="settings-output"><option value="epub">EPUB</option><option value="txt">TXT</option></select>
+            </label>
+            <label>Default model
+              <select id="settings-model"><option value="">No default model</option></select>
+            </label>
+          </div>
+          <div class="editor-actions"><button id="save-settings" class="button button-primary" type="button">Save settings</button></div>
+          <p id="settings-message" class="inline-message" role="status"></p>
+        </div>
+        <div class="panel settings-note"><h3>Local storage</h3><p>Your library files, glossary, translation jobs, and settings are stored in this app’s local data folder. They are not uploaded to a cloud service.</p></div>
+      </section>
+      <footer><span>Private by design · No cloud translation</span><span>Translation quality depends on your selected model</span></footer>
+    </main>
+    <dialog id="illustration-dialog" class="illustration-dialog" aria-labelledby="illustration-title">
+      <div class="illustration-dialog-header">
+        <div><p class="eyebrow">NOVEL ARTWORK</p><h2 id="illustration-title">Illustrations</h2></div>
+        <button id="close-illustrations" class="button button-secondary" type="button">Close</button>
+      </div>
+      <p id="illustration-message" class="inline-message" role="status"></p>
+      <div id="illustration-gallery" class="illustration-gallery"></div>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\novel-ai-translator.exe: C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\build.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\capabilities C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\src\main.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\tauri.conf.json

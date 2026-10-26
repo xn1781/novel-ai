@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\webview2-com-sys-954b59b21298bfa3\out\x64
+cargo:rustc-link-lib=advapi32

@@ -1,0 +1,14 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\serde-265df876a28839d5.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\serde-caf90ae49a2dc10f\out/private.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libserde-265df876a28839d5.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\serde-caf90ae49a2dc10f\out/private.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libserde-265df876a28839d5.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\serde-caf90ae49a2dc10f\out/private.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs:
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\serde-caf90ae49a2dc10f\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\Ucer\\Documents\\GitHub\\novel-ai\\src-tauri\\target-retry-build\\release\\build\\serde-caf90ae49a2dc10f\\out

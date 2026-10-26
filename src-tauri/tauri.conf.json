@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Novel Translator",
+  "version": "0.1.0",
+  "identifier": "com.local.novel-translator",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Novel Translator",
+        "width": 1060,
+        "height": 850,
+        "minWidth": 760,
+        "minHeight": 650
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/library/**"]
+      },
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://localhost:11434; img-src 'self' asset: http://asset.localhost https://assets.raw-fucknovelpia.com data:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.ico"],
+    "targets": "all"
+  }
+}

@@ -1,0 +1,11 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\zeroize-8a2e3815328ac333.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\barrier.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\stack.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\../README.md
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libzeroize-8a2e3815328ac333.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\barrier.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\stack.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\../README.md
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libzeroize-8a2e3815328ac333.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\barrier.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\stack.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\../README.md
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\x86.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\barrier.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\stack.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zeroize-1.9.1\src\../README.md:

@@ -1,0 +1,10 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\icu_normalizer-8bc83c6ddc7ad497.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\properties.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\provider.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\uts46.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libicu_normalizer-8bc83c6ddc7ad497.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\properties.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\provider.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\uts46.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libicu_normalizer-8bc83c6ddc7ad497.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\properties.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\provider.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\uts46.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\properties.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\provider.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\icu_normalizer-2.4.0\src\uts46.rs:

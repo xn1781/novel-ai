@@ -1,0 +1,10 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\toml_datetime-0423e12cac924441.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\datetime.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\ser.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libtoml_datetime-0423e12cac924441.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\datetime.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\ser.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libtoml_datetime-0423e12cac924441.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\datetime.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\de.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\ser.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\datetime.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\de.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\toml_datetime-1.1.2+spec-1.1.0\src\ser.rs:

@@ -1,0 +1,14 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\thiserror-a12ae75c0c919dc5.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\thiserror-4caffecca34cb5aa\out/private.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libthiserror-a12ae75c0c919dc5.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\thiserror-4caffecca34cb5aa\out/private.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\deps\libthiserror-a12ae75c0c919dc5.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\thiserror-4caffecca34cb5aa\out/private.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs:
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-retry-build\release\build\thiserror-4caffecca34cb5aa\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\Ucer\\Documents\\GitHub\\novel-ai\\src-tauri\\target-retry-build\\release\\build\\thiserror-4caffecca34cb5aa\\out

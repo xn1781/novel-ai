@@ -1,0 +1,10 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\derive_more-a9bb9a479eb6a17d.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\syn_compat.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\utils.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_assign_like.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_helpers.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_like.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\derive_more-a9bb9a479eb6a17d.dll: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\syn_compat.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\utils.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_assign_like.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_helpers.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_like.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\syn_compat.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\utils.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_assign_like.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_helpers.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\derive_more-0.99.20\src\add_like.rs:

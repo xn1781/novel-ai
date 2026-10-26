@@ -1,0 +1,11 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\core_detect-b7d42b2730a66f1f.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\macros.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\arch\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\os\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\cache.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libcore_detect-b7d42b2730a66f1f.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\macros.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\arch\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\os\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\cache.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libcore_detect-b7d42b2730a66f1f.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\macros.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\arch\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\os\x86.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\cache.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\macros.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\arch\x86.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\os\x86.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\core_detect-1.0.0\src\cache.rs:

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#171d29" />
+    <title>My Library · Reader</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <button id="library-button" class="icon-button" type="button" title="Library" aria-label="Library">☰</button>
+        <div class="brand"><span class="brand-icon">✦</span> <span id="header-title">My Library</span></div>
+        <button id="settings-button" class="icon-button" type="button" title="Reading settings" aria-label="Reading settings">Aa</button>
+      </header>
+      <main>
+        <section id="unlock-view" class="center-view" hidden>
+          <div class="panel unlock-panel">
+            <div class="hero-icon">✦</div>
+            <h1>Your private library</h1>
+            <p>Enter the passphrase used to encrypt your books. Your books are decrypted only in this browser.</p>
+            <form id="unlock-form">
+              <label for="passphrase">Passphrase</label>
+              <input id="passphrase" type="password" autocomplete="current-password" required minlength="12" />
+              <button type="submit" class="primary">Unlock library</button>
+            </form>
+            <p id="unlock-error" class="error" role="alert"></p>
+            <p class="hint">Remembered on this browser until you clear site data or choose Forget this device.</p>
+          </div>
+        </section>
+        <section id="library-view" class="library-view" hidden>
+          <div class="library-heading"><div><span class="eyebrow">YOUR COLLECTION</span><h1>My Library</h1><p>Pick up where you left off.</p></div><button id="forget-button" class="subtle" type="button">Forget this device</button></div>
+          <div id="library-controls" class="library-controls"><label for="book-search">Search your library</label><input id="book-search" type="search" placeholder="Title, author, tags, synopsis…" /><div class="filter-row"><label for="publication-filter">Publication<select id="publication-filter"><option value="">All</option><option>Unknown</option><option>Ongoing</option><option>Completed</option><option>Hiatus</option><option>Dropped</option></select></label><label for="language-filter">Language<select id="language-filter"><option value="">All</option><option>Japanese</option><option>Korean</option></select></label><label for="tag-filter">Tag<select id="tag-filter"><option value="">All tags</option></select></label></div><p id="result-count" class="hint"></p></div>
+          <div id="book-list" class="book-list"></div>
+          <section id="book-details" class="book-info" hidden><button id="close-details" class="subtle" type="button">← Back to library</button><div class="info-layout"><div id="detail-cover" class="detail-cover"></div><div class="info-text"><h2 id="detail-title"></h2><p id="detail-original"></p><p id="detail-author"></p><p id="detail-meta"></p><div id="detail-tags" class="tag-list"></div><h3>Synopsis</h3><p id="detail-synopsis" class="synopsis"></p><button id="read-button" class="primary" type="button">Start reading →</button></div></div><div class="detail-chapters"><div class="chapter-heading"><h3>Chapters</h3><label for="chapter-sort">Sort <select id="chapter-sort"><option value="asc">Reading order</option><option value="desc">Newest first</option><option value="unread">Unread first</option></select></label></div><p id="detail-chapter-status" role="status">Loading chapters…</p><nav id="detail-chapter-list" aria-label="Novel chapters"></nav></div></section>
+        </section>
+        <section id="reader-view" class="reader-view" hidden>
+          <div class="reader-toolbar"><button id="chapters-button" class="subtle" type="button">☰ Chapters</button><span id="chapter-name"></span><span id="progress-label">0%</span></div>
+          <div id="book-area" aria-label="Book content"></div>
+          <div class="reader-footer"><button id="prev-button" type="button">← Previous chapter</button><span id="location-label"></span><button id="next-button" type="button">Next chapter →</button></div>
+        </section>
+      </main>
+      <div id="backdrop" class="backdrop" hidden></div>
+      <aside id="chapters-panel" class="drawer" aria-label="Chapters" aria-hidden="true"><div class="drawer-header"><h2>Contents</h2><button class="close-button" type="button" aria-label="Close chapters">✕</button></div><nav id="chapter-list" aria-label="Table of contents"></nav></aside>
+      <aside id="settings-panel" class="drawer" aria-label="Reading settings" aria-hidden="true"><div class="drawer-header"><h2>Appearance</h2><button class="close-button" type="button" aria-label="Close settings">✕</button></div>
+        <div class="settings-body">
+          <label for="theme">Theme</label><select id="theme"><option value="light">Light</option><option value="sepia">Sepia</option><option value="dark">Dark</option><option value="custom">Custom</option></select>
+          <div class="color-row"><label for="background">Background color</label><input id="background" type="color" /></div>
+          <div class="color-row"><label for="foreground">Text color</label><input id="foreground" type="color" /></div>
+          <label for="interface-mode">Interface colors</label><select id="interface-mode"><option value="match">Match reading theme</option><option value="custom">Separate interface colors</option></select>
+          <div id="interface-colors" hidden><div class="color-row"><label for="interface-background">Interface background</label><input id="interface-background" type="color" /></div><div class="color-row"><label for="interface-foreground">Interface text</label><input id="interface-foreground" type="color" /></div></div>
+          <label for="font">Font</label><select id="font"><option value="Georgia, serif">Georgia</option><option value="'Open Sans', system-ui, sans-serif">Open Sans</option><option value="Merriweather, Georgia, serif">Merriweather</option><option value="Arial, sans-serif">Arial</option><option value="Verdana, sans-serif">Verdana</option><option value="'Times New Roman', serif">Times New Roman</option><option value="system-ui, sans-serif">System</option></select>
+          <label for="font-size">Font size <output id="font-size-value"></output></label><input id="font-size" type="range" min="12" max="32" step="1" />
+          <label for="line-spacing">Line spacing <output id="line-spacing-value"></output></label><input id="line-spacing" type="range" min="1.2" max="2.5" step="0.1" />
+          <label for="width">Page width <output id="width-value"></output></label><input id="width" type="range" min="480" max="1100" step="20" />
+          <label for="flow">Layout</label><select id="flow"><option value="scrolled-chapter">Chapter scroll (one long chapter)</option><option value="scrolled-continuous">Continuous scroll (infinite)</option><option value="paginated">Pages</option></select>
+          <button id="reset-settings" class="subtle" type="button">Reset appearance</button>
+        </div>
+      </aside>
+      <div id="toast" class="toast" role="status" hidden></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

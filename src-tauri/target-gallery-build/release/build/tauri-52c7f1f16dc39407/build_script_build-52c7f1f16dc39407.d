@@ -1,0 +1,6 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\tauri-52c7f1f16dc39407\build_script_build-52c7f1f16dc39407.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\build.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\./mobile/proguard-tauri.pro
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\tauri-52c7f1f16dc39407\build_script_build-52c7f1f16dc39407.exe: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\build.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\./mobile/proguard-tauri.pro
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\build.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-2.12.5\./mobile/proguard-tauri.pro:

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+reader/books-private/
+reader/**/*.metadata.json
+reader/**/*.cover.*
+reader/.env*
+reader/**/*.epub

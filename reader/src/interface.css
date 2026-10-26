@@ -1,0 +1,33 @@
+/* The navigation belongs to the selected reading palette, not a fixed navy.
+   Derived surfaces/borders preserve separation without a bright frame. */
+:root {
+  --ui-bg: #101010;
+  --ui-fg: #cccccc;
+  --ui-surface: color-mix(in srgb, var(--ui-bg) 94%, var(--ui-fg));
+  --ui-border: color-mix(in srgb, var(--ui-bg) 80%, var(--ui-fg));
+  --ui-muted: color-mix(in srgb, var(--ui-bg) 34%, var(--ui-fg));
+}
+body { background: var(--ui-bg); color: var(--ui-fg); }
+.topbar, .drawer { background: var(--ui-bg); color: var(--ui-fg); border-color: var(--ui-border); }
+.topbar { border-bottom: 1px solid var(--ui-border); }
+.brand-icon, .icon-button, .close-button { color: var(--ui-fg); }
+.subtle, .reader-toolbar .subtle { color: inherit; border-color: var(--ui-border); }
+.subtle:hover, .icon-button:hover, .close-button:hover { color: var(--ui-fg); background: var(--ui-surface); }
+.drawer-header { border-color: var(--ui-border); }
+#chapter-list button { color: var(--ui-fg); }
+#chapter-list button:hover { background: var(--ui-surface); }
+.settings-body select, .settings-body .subtle { background: var(--ui-surface); color: var(--ui-fg); border-color: var(--ui-border); }
+.settings-body input[type=range] { accent-color: var(--ui-fg); }
+.reader-toolbar, .reader-footer { border-color: color-mix(in srgb, var(--page) 80%, var(--ink)); }
+.reader-toolbar .subtle { color: var(--ink); border-color: color-mix(in srgb, var(--page) 80%, var(--ink)); }
+.library-view, .center-view { color: var(--ui-fg); }
+.panel, .book-info, .book-card, .library-controls { background: var(--ui-surface); color: var(--ui-fg); border-color: var(--ui-border); }
+.library-controls input, .library-controls select, .chapter-heading select, .unlock-panel input { background: var(--ui-bg); color: var(--ui-fg); border-color: var(--ui-border); }
+.library-heading p, .unlock-panel p, .info-text p, .detail-chapters>p, .chapter-heading label { color: var(--ui-muted); }
+.info-text .synopsis, .book-card, .detail-chapter { color: var(--ui-fg); }
+.detail-chapter, .detail-chapters { border-color: var(--ui-border); }
+.detail-chapter:hover { background: var(--ui-bg); }
+.chapter-state, .book-details span, .eyebrow, .tag { color: var(--ui-fg); }
+.tag { background: var(--ui-bg); }
+#interface-colors { display: grid; gap: 10px; }
+#interface-colors[hidden] { display: none; }

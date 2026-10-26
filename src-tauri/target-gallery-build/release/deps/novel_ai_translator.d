@@ -1,0 +1,15 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\novel_ai_translator.d: src\main.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-P5Pzc-Fs.js \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\7decafa4f991baa93bc78c194bdfdc4690b7c0570d5baef62622419ec982c2ff.js C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\index.html \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\a431a876934d58a81593e5bc3ed54154b99d85ebe21a2ab148104fe7d0be6b44.html C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-DoZfiqlw.css \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\1d990d966e2fe692a39a84513682c1ebf7f7ddca1be32dc43f461f2a9e194bc8.css
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\novel_ai_translator.exe: src\main.rs C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-P5Pzc-Fs.js \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\7decafa4f991baa93bc78c194bdfdc4690b7c0570d5baef62622419ec982c2ff.js C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\index.html \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\a431a876934d58a81593e5bc3ed54154b99d85ebe21a2ab148104fe7d0be6b44.html C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-DoZfiqlw.css \\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\1d990d966e2fe692a39a84513682c1ebf7f7ddca1be32dc43f461f2a9e194bc8.css
+
+src\main.rs:
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-P5Pzc-Fs.js:
+\\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\7decafa4f991baa93bc78c194bdfdc4690b7c0570d5baef62622419ec982c2ff.js:
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\index.html:
+\\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\a431a876934d58a81593e5bc3ed54154b99d85ebe21a2ab148104fe7d0be6b44.html:
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\../dist\assets\index-DoZfiqlw.css:
+\\?\C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\build\novel-ai-translator-6c5e907e94b566bf\out\tauri-codegen-assets\1d990d966e2fe692a39a84513682c1ebf7f7ddca1be32dc43f461f2a9e194bc8.css:
+
+# env-dep:CARGO_PKG_AUTHORS=you
+# env-dep:CARGO_PKG_DESCRIPTION=Local Korean and Japanese book translator
+# env-dep:CARGO_PKG_NAME=novel-ai-translator

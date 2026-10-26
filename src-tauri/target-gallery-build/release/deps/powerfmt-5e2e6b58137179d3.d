@@ -1,0 +1,11 @@
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\powerfmt-5e2e6b58137179d3.d: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\buf.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\ext.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display_impls.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libpowerfmt-5e2e6b58137179d3.rlib: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\buf.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\ext.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display_impls.rs
+
+C:\Users\Ucer\Documents\GitHub\novel-ai\src-tauri\target-gallery-build\release\deps\libpowerfmt-5e2e6b58137179d3.rmeta: C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\lib.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\buf.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\ext.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display.rs C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display_impls.rs
+
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\lib.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\buf.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\ext.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display.rs:
+C:\Users\Ucer\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\powerfmt-0.2.1\src\smart_display_impls.rs:
