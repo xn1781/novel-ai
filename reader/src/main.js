@@ -842,6 +842,52 @@ async function initialize() {
 	show("unlock");
 }
 
+// The top bar already shows the chapter, so remove the heading repeated at the
+// start of the chapter text. Matches loosely ("Chapter 1: Foo" vs "Foo"), and falls
+// back to a heading that is the very first thing in the section.
+function hideChapterHeading(doc, title) {
+	const normalize = (value) =>
+		value.replace(/[\s\p{P}\p{S}]/gu, "").toLocaleLowerCase();
+	const target = normalize(title);
+	const body = doc.body;
+	if (!target || !body) return;
+	const blocks = [...body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,div")]
+		.filter(
+			(element) =>
+				!element.querySelector("h1,h2,h3,h4,h5,h6,p,div") &&
+				normalize(element.textContent),
+		)
+		.slice(0, 4);
+	const matches = (element) => {
+		const text = normalize(element.textContent);
+		return (
+			text === target ||
+			(text.length >= 4 &&
+				text.length <= 200 &&
+				(text.includes(target) || target.includes(text)))
+		);
+	};
+	let heading = blocks.find(matches);
+	if (
+		!heading &&
+		blocks[0] &&
+		/^H[1-6]$/.test(blocks[0].tagName) &&
+		normalize(blocks[0].textContent).length <= 120
+	)
+		heading = blocks[0];
+	if (!heading) return;
+	// Also hide a wrapper that holds nothing but the heading, so no empty gap is left.
+	let node = heading;
+	const headingText = normalize(heading.textContent);
+	while (
+		node.parentElement &&
+		node.parentElement !== body &&
+		normalize(node.parentElement.textContent) === headingText
+	)
+		node = node.parentElement;
+	node.style.display = "none";
+}
+
 function flattenToc(items, depth = 0) {
 	return items.flatMap((item) => [
 		{ label: item.label, href: item.href, depth },
@@ -961,17 +1007,7 @@ async function openBook(
 			const title = toc
 				.filter((item) => item.href?.split("#")[0] === locationHref)
 				.at(-1)?.label;
-			if (title) {
-				const normalize = (value) =>
-					value.replace(/[\s\p{P}\p{S}]/gu, "").toLocaleLowerCase();
-				const heading = [
-					...contents.document.querySelectorAll("h1,h2,h3,h4,h5,h6"),
-				].find(
-					(element) =>
-						normalize(element.textContent) === normalize(title),
-				);
-				if (heading) heading.style.display = "none";
-			}
+			if (title) hideChapterHeading(contents.document, title);
 			attachDoubleTap(contents.document);
 		});
 		rendition.on("relocated", (location) => {
