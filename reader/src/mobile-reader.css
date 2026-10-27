@@ -146,6 +146,44 @@ body.reader-active .reader-topbar-chapter {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Window-scroll mode: the page itself scrolls (instead of a locked box) so
+     Safari can collapse its toolbar while reading. */
+  body.reader-active.window-scroll {
+    position: static;
+    inset: auto;
+    height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+    background: var(--page);
+  }
+
+  body.reader-active.window-scroll main {
+    height: auto;
+    overflow: visible;
+  }
+
+  body.reader-active.window-scroll .reader-view {
+    position: static;
+    height: auto;
+    overflow: visible;
+    display: block;
+  }
+
+  body.reader-active.window-scroll #book-area {
+    position: static;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    touch-action: auto;
+    padding-top: calc(env(safe-area-inset-top) + 28px);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 60px);
+  }
+
+  body.reader-active.window-scroll #book-area .epub-container {
+    overflow: visible;
+    touch-action: auto;
+  }
+
   /* iOS Safari can stop delivering touch events from inside the book iframe, so
      taps are read on the page around it. Scrolling still works because the
      scroll container sits underneath. Tradeoff: no text selection or footnote

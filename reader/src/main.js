@@ -78,10 +78,17 @@ let mobileChromeTimer, mobileHintTimer;
 let handlingPopState = false;
 let inAppHistory = false; // true once we've pushed a history entry ourselves
 let chromeToggledAt = 0;
+let windowScroll = false,
+	scrollTarget = null;
+// Mobile scrolled layouts let the page itself scroll, so Safari can collapse its toolbar.
+// Set to false to go back to scrolling inside a fixed box.
+const WINDOW_SCROLL_ON_MOBILE = true;
 
 const MOBILE_QUERY =
 	"(max-width: 600px), (pointer: coarse) and (max-height: 500px)";
 const isMobileViewport = () => matchMedia(MOBILE_QUERY).matches;
+const useWindowScroll = (flow) =>
+	WINDOW_SCROLL_ON_MOBILE && isMobileViewport() && flow !== "paginated";
 
 // Add ?debug to the URL to see tap events as on-screen toasts.
 const DEBUG = new URLSearchParams(location.search).has("debug");
@@ -454,7 +461,10 @@ function markRead(sectionIndex) {
 }
 
 function getScrollContainer() {
-	return rendition?.manager?.container || null;
+	if (!rendition) return null;
+	return windowScroll
+		? document.scrollingElement
+		: rendition.manager?.container || null;
 }
 
 function flushProgress() {
@@ -500,8 +510,9 @@ function scheduleProgress(location) {
 }
 
 function detachScroll() {
-	if (scrollContainer && scrollListener)
-		scrollContainer.removeEventListener("scroll", scrollListener);
+	if (scrollTarget && scrollListener)
+		scrollTarget.removeEventListener("scroll", scrollListener);
+	scrollTarget = null;
 	scrollContainer = null;
 	scrollListener = null;
 }
@@ -510,9 +521,12 @@ function attachScroll() {
 	detachScroll();
 	scrollContainer = getScrollContainer();
 	if (!scrollContainer) return;
-	scrollContainer.style.touchAction = "pan-y";
-	scrollContainer.style.overscrollBehaviorY = "contain";
-	scrollContainer.style.webkitOverflowScrolling = "touch";
+	scrollTarget = windowScroll ? window : scrollContainer;
+	if (!windowScroll) {
+		scrollContainer.style.touchAction = "pan-y";
+		scrollContainer.style.overscrollBehaviorY = "contain";
+		scrollContainer.style.webkitOverflowScrolling = "touch";
+	}
 	lastScrollTop = scrollContainer.scrollTop;
 	scrollListener = () => {
 		if (loadingBook || settings.flow === "paginated") return;
@@ -534,9 +548,7 @@ function attachScroll() {
 		rendition.reportLocation();
 		scheduleProgress(rendition.location);
 	};
-	scrollContainer.addEventListener("scroll", scrollListener, {
-		passive: true,
-	});
+	scrollTarget.addEventListener("scroll", scrollListener, { passive: true });
 }
 
 function unloadBook(save = true) {
@@ -552,6 +564,9 @@ function unloadBook(save = true) {
 	scrolledToEnd = false;
 	scrollingForward = false;
 	seekingChapter = false;
+	if (windowScroll) window.scrollTo(0, 0);
+	windowScroll = false;
+	document.body.classList.remove("window-scroll");
 }
 
 function tagsFor(item) {
@@ -977,6 +992,8 @@ async function openBook(
 		activeId = id;
 		detailBook = null;
 		loadingBook = true;
+		windowScroll = useWindowScroll(settings.flow);
+		document.body.classList.toggle("window-scroll", windowScroll);
 		show("reader");
 		setChapterTitle("Loading book…");
 		$("progress-label").textContent = "";
@@ -990,7 +1007,7 @@ async function openBook(
 		renderToc();
 		rendition = book.renderTo("book-area", {
 			width: "100%",
-			height: "100%",
+			...(windowScroll ? { fullsize: true } : { height: "100%" }),
 			...layoutFor(settings.flow),
 			spread: "none",
 			allowScriptedContent: false,
@@ -1020,6 +1037,23 @@ async function openBook(
 			await rendition.display(target || undefined);
 		} catch {
 			await rendition.display();
+		}
+		if (windowScroll && rendition.manager) {
+			// Collapsing Safari's toolbar changes only the window height. epub.js would
+			// clear and re-render every section on that, so only react to width changes.
+			const manager = rendition.manager;
+			const originalResize = manager.resize.bind(manager);
+			let lastWidth = window.innerWidth;
+			manager.resize = (...args) => {
+				if (
+					args[0] == null &&
+					args[1] == null &&
+					window.innerWidth === lastWidth
+				)
+					return;
+				lastWidth = window.innerWidth;
+				return originalResize(...args);
+			};
 		}
 		// epub.js may initially report the beginning of a section before the
 		// requested CFI is positioned. Restore scroll after display, then persist.
