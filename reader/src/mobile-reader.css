@@ -1,9 +1,34 @@
-/* Chapter title in topbar — desktop hidden, mobile shown */
-.reader-topbar-chapter {
-  display: none;
+/* Chapter title as a subtitle under the book title, at every width */
+.reader-topbar-chapter { display: none; }   /* hidden outside the reader */
+
+body.reader-active .brand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 6px;
+  min-width: 0;
+  max-width: 76%;
 }
 
-@media (max-width: 600px) {
+body.reader-active .brand-icon { grid-row: 1 / span 2; }
+
+body.reader-active #header-title,
+body.reader-active .reader-topbar-chapter {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;   /* long chapter titles get cut off cleanly */
+}
+
+body.reader-active .reader-topbar-chapter {
+  grid-column: 2;
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+@media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
   /* Lock body when reading to prevent rubber-band scrolling */
   body.reader-active {
     position: fixed;
@@ -42,30 +67,6 @@
     transform: translateY(-100%);
     visibility: hidden;
     pointer-events: none;
-  }
-
-  /* Brand area shows two-line layout: title + chapter subtitle */
-  body.reader-active .brand {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    column-gap: 5px;
-    max-width: 76%;
-  }
-
-  body.reader-active .brand-icon {
-    grid-row: 1 / span 2;
-  }
-
-  body.reader-active .reader-topbar-chapter {
-    display: block;
-    grid-column: 2;
-    color: var(--ui-muted);
-    font-size: 11px;
-    font-weight: 400;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* Secondary toolbar (chapters + progress) slides under topbar */
@@ -112,6 +113,14 @@
     color: var(--ui-fg);
     background: transparent;
     border: 0;
+  }
+
+  /* Keep the notch / rounded corners from covering content in landscape */
+  body.reader-active .topbar,
+  body.reader-active .reader-toolbar,
+  body.reader-active .reader-footer {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
   }
 
   /* Book area fills the whole screen — all chrome is overlaid */

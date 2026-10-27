@@ -28,6 +28,77 @@ let currentSectionIndex = null;
 let chapters = [], pendingLocation, scrollContainer, scrollListener, loadingBook = false, advancing = false;
 let scrolledToEnd = false, scrollingForward = false, lastScrollTop = 0, seekingChapter = false;
 let mobileChromeTimer, previousTapAt = 0, mobileHintTimer;
+let handlingPopState = false;
+let inAppHistory = false;   // true once we've pushed a history entry ourselves
+let lastTap = null;
+
+const MOBILE_QUERY = '(max-width: 600px), (pointer: coarse) and (max-height: 500px)';
+const isMobileViewport = () => matchMedia(MOBILE_QUERY).matches;
+
+function setChapterTitle(label) {
+  const bookTitle = catalog.find(item => item.id === activeId)?.title || 'Reader';
+  $('header-title').textContent = bookTitle;          // line 1: book
+  $('header-title').title = label ? `${bookTitle} — ${label}` : bookTitle;
+  $('chapter-name').textContent = label || '';        // line 2: chapter
+  document.title = label ? `${label} — ${bookTitle}` : bookTitle;
+}
+
+function attachDoubleTap(doc) {
+  let start = null;
+  doc.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1) { start = null; lastTap = null; return; }
+    const t = event.touches[0];
+    start = { x: t.clientX, y: t.clientY, time: Date.now() };
+  }, { passive: true });
+  doc.addEventListener('touchend', event => {
+    if (!start) return;
+    const t = event.changedTouches[0];
+    const moved = Math.hypot(t.clientX - start.x, t.clientY - start.y);
+    const now = Date.now();
+    const wasTap = moved < 10 && now - start.time < 300;
+    start = null;
+    if (!wasTap || event.target.closest?.('a[href]')) { lastTap = null; return; }
+    if (lastTap && now - lastTap.time < 350 && Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < 40) {
+      event.preventDefault();
+      doc.getSelection?.()?.removeAllRanges(); // iOS selects a word on double-tap
+      lastTap = null;
+      setMobileChrome(!document.body.classList.contains('reader-chrome-hidden'), true);
+    } else {
+      lastTap = { time: now, x: t.clientX, y: t.clientY };
+    }
+  }, { passive: false });
+}
+
+// ── Hash-based routing ──────────────────────────────────────────────────────
+function setHash(hash, replace = false) {
+  const url = hash ? `#${hash}` : location.pathname + location.search;
+  if (replace) history.replaceState({ hash }, '', url);
+  else { history.pushState({ hash }, '', url); inAppHistory = true; }
+}
+
+async function handleHash() {
+  handlingPopState = true;
+  try {
+    if (!key) { show('unlock'); return; }
+    const hash = location.hash.slice(1);
+    if (!hash.startsWith('read/') && book) unloadBook();
+    if (hash.startsWith('read/')) {
+      const id = decodeURIComponent(hash.slice(5));
+      if (catalog.some(e => e.id === id)) { await openBook(id, undefined, false, true); return; }
+    }
+    if (hash.startsWith('book/')) {
+      const id = decodeURIComponent(hash.slice(5));
+      const item = catalog.find(e => e.id === id);
+      if (item) { showDetails(item, true); return; }
+    }
+    renderLibrary(true);
+  } finally {
+    handlingPopState = false;
+  }
+}
+
+window.addEventListener('popstate', () => handleHash());
+// ────────────────────────────────────────────────────────────────────────────
 
 function setMobileChrome(hidden, autoHide = false) {
   const isMobileReader = document.body.classList.contains('reader-active') && matchMedia('(max-width: 600px)').matches;
@@ -103,7 +174,13 @@ function show(view) {
   }
   $('library-button').hidden = view !== 'reader';
   $('settings-button').hidden = view === 'unlock';
-  $('header-title').textContent = view === 'reader' ? catalog.find(item => item.id === activeId)?.title || 'Reader' : 'My Library';
+  if (view === 'reader') setChapterTitle('');
+  else {
+    $('header-title').textContent = 'My Library';
+    $('header-title').title = '';
+    $('chapter-name').textContent = '';
+    document.title = 'My Library';
+  }
   closePanels();
 }
 
@@ -295,7 +372,8 @@ async function loadDetailChapters(item) {
     if (detailBook === item) setText('detail-chapter-status', `Cannot load chapters: ${error.message}`);
   }
 }
-function showDetails(item) {
+function showDetails(item, skipHash = false) {
+  if (!skipHash) setHash(`book/${encodeURIComponent(item.id)}`);
   $('library-controls').hidden = true;
   $('book-list').hidden = true;
   $('book-details').hidden = false;
@@ -323,7 +401,8 @@ function updateFilters() {
   tagSelect.value = selected;
 }
 
-function renderLibrary() {
+function renderLibrary(skipHash = false) {
+  if (!skipHash) setHash('', true); // replace so the library is always the base
   $('book-details').hidden = true;
   $('library-controls').hidden = false;
   const list = $('book-list');
@@ -382,7 +461,7 @@ async function initialize() {
   if (key) {
     try { catalog = await readCatalog(key, index); }
     catch (error) { console.warn('Remembered key cannot decrypt the current catalog:', error); key = null; }
-    if (key) { updateFilters(); renderLibrary(); return; }
+    if (key) { updateFilters(); await handleHash(); return; }
   }
   show('unlock');
 }
@@ -429,20 +508,21 @@ function updateLocation(location) {
   const total = book.spine?.spineItems?.length || 1;
   const percentage = Math.min(100, Math.round((spineIndex / total) * 100));
   $('progress-label').textContent = `${percentage}%`;
-  $('location-label').textContent = `Section ${spineIndex + 1} of ${total}`;
+  setChapterTitle(current?.label || `Section ${spineIndex + 1}`);
 }
 
-async function openBook(id, locationOverride, savedBeforeSwitch = false) {
+async function openBook(id, locationOverride, savedBeforeSwitch = false, skipHash = false) {
   if (!key) return;
   const item = catalog.find(entry => entry.id === id);
   if (!item) return;
+  if (!skipHash) setHash(`read/${encodeURIComponent(id)}`);
   try {
     unloadBook(!savedBeforeSwitch);
     activeId = id;
     detailBook = null;
     loadingBook = true;
     show('reader');
-    $('chapter-name').textContent = 'Loading book…';
+    setChapterTitle('Loading book…');
     $('progress-label').textContent = '';
     $('location-label').textContent = '';
     $('book-area').replaceChildren();
@@ -459,6 +539,8 @@ async function openBook(id, locationOverride, savedBeforeSwitch = false) {
     const fontCss = readerFontCss();
     rendition.hooks.content.register(contents => {
       contents.addStylesheetCss(fontCss, 'reader-font-faces');
+      // Prevent Safari double-tap zoom so we can handle double-tap ourselves
+      contents.addStylesheetCss('html,body{touch-action:manipulation}', 'reader-touch-action');
       const locationHref = contents.section?.href?.split('#')[0];
       const title = toc.filter(item => item.href?.split('#')[0] === locationHref).at(-1)?.label;
       if (title) {
@@ -467,16 +549,7 @@ async function openBook(id, locationOverride, savedBeforeSwitch = false) {
           .find(element => normalize(element.textContent) === normalize(title));
         if (heading) heading.style.display = 'none';
       }
-      contents.document.addEventListener('touchend', event => {
-        const now = Date.now();
-        if (now - previousTapAt < 350) {
-          event.preventDefault();
-          setMobileChrome(!document.body.classList.contains('reader-chrome-hidden'), true);
-          previousTapAt = 0;
-        } else {
-          previousTapAt = now;
-        }
-      }, { passive: false });
+      attachDoubleTap(contents.document);
     });
     rendition.on('relocated', location => {
       updateLocation(location);
@@ -524,7 +597,7 @@ $('unlock-form').addEventListener('submit', async event => {
     try { await saveKey(candidate); }
     catch { toast('Unlocked, but this browser cannot remember the key. Check private browsing or storage settings.'); }
     $('passphrase').value = '';
-    renderLibrary();
+    await handleHash();
   } catch (error) {
     console.error('Reader unlock failed outside decryption:', error);
     $('unlock-error').textContent = 'Unable to initialize the reader. Check the browser console for details.';
@@ -540,9 +613,12 @@ $('forget-button').addEventListener('click', async () => {
 });
 $('library-button').addEventListener('click', () => {
   unloadBook();
-  renderLibrary();
+  if (inAppHistory) history.back(); else renderLibrary();
 });
-$('close-details').addEventListener('click', () => { detailBook = null; renderLibrary(); });
+$('close-details').addEventListener('click', () => {
+  detailBook = null;
+  if (inAppHistory) history.back(); else renderLibrary();
+});
 $('chapter-sort').addEventListener('change', renderDetailChapters);
 window.addEventListener('pagehide', flushProgress);
 for (const id of ['book-search', 'publication-filter', 'language-filter', 'tag-filter']) {
