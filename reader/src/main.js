@@ -83,32 +83,50 @@ const MOBILE_QUERY =
 	"(max-width: 600px), (pointer: coarse) and (max-height: 500px)";
 const isMobileViewport = () => matchMedia(MOBILE_QUERY).matches;
 
-// Book title on line 1, chapter title on line 2 of the top bar.
+// Add ?debug to the URL to see tap events as on-screen toasts.
+const DEBUG = new URLSearchParams(location.search).has("debug");
+const debugLines = [];
+function dbg(message) {
+	if (!DEBUG) return;
+	debugLines.push(message);
+	toast(debugLines.slice(-4).join(" · "));
+}
+
+// Chapter on the main line of the top bar, book title as the small subtitle.
+// The slim strip keeps the chapter visible while the rest of the chrome is hidden.
 function setChapterTitle(label) {
 	const bookTitle =
 		catalog.find((item) => item.id === activeId)?.title || "Reader";
-	$("header-title").textContent = bookTitle;
+	$("header-title").textContent = label || bookTitle;
+	$("chapter-name").textContent = label ? bookTitle : "";
 	$("header-title").title = label ? `${bookTitle} — ${label}` : bookTitle;
-	$("chapter-name").textContent = label || "";
+	const strip = $("reader-strip");
+	if (strip) strip.textContent = label || "";
 	document.title = label ? `${label} — ${bookTitle}` : bookTitle;
 }
 
-function toggleChrome() {
-	chromeToggledAt = Date.now();
-	setMobileChrome(
-		!document.body.classList.contains("reader-chrome-hidden"),
-		true,
-	);
+function toggleChrome(source) {
+	const now = Date.now();
+	if (now - chromeToggledAt < 500) return; // several detectors can fire for one double-tap
+	chromeToggledAt = now;
+	const hide = !document.body.classList.contains("reader-chrome-hidden");
+	setMobileChrome(hide, true);
+	dbg(`${source} → ${hide ? "hide" : "show"}`);
 }
 
-// Works on any element or document: the book iframe's document and the page around it.
-// Uses pointer events, which are more reliable on iOS Safari than touch events.
+// Works on any element or document. On iOS, touch events inside the book iframe
+// can stop arriving (a known WebKit bug), so the page around the book is the main
+// target (see the pointer-events rule in mobile-reader.css) and the iframe is a backup.
 function attachDoubleTap(target) {
 	let down = null,
 		last = null;
+	const onLink = (event) => event.target?.closest?.("a[href]");
+	const clearSelection = () =>
+		(target.ownerDocument || target).getSelection?.()?.removeAllRanges();
 	target.addEventListener(
 		"pointerdown",
 		(event) => {
+			dbg(`down:${event.pointerType}`);
 			if (event.pointerType !== "touch" || !event.isPrimary) {
 				down = null;
 				return;
@@ -117,10 +135,10 @@ function attachDoubleTap(target) {
 		},
 		{ passive: true },
 	);
-	// iOS sends pointercancel when a touch turns into a scroll.
 	target.addEventListener(
 		"pointercancel",
 		() => {
+			dbg("cancel");
 			down = null;
 			last = null;
 		},
@@ -137,7 +155,8 @@ function attachDoubleTap(target) {
 			);
 			const wasTap = moved < 12 && now - down.time < 350;
 			down = null;
-			if (!wasTap || event.target.closest?.("a[href]")) {
+			dbg(wasTap ? "tap" : `no-tap ${Math.round(moved)}px`);
+			if (!wasTap || onLink(event)) {
 				last = null;
 				return;
 			}
@@ -147,16 +166,21 @@ function attachDoubleTap(target) {
 				Math.hypot(event.clientX - last.x, event.clientY - last.y) < 50
 			) {
 				last = null;
-				(target.ownerDocument || target)
-					.getSelection?.()
-					?.removeAllRanges(); // iOS selects a word on double-tap
-				toggleChrome();
+				clearSelection();
+				toggleChrome("pointer");
 			} else {
 				last = { time: now, x: event.clientX, y: event.clientY };
 			}
 		},
 		{ passive: true },
 	);
+	// Backup in case Safari reports a native double-click instead.
+	target.addEventListener("dblclick", (event) => {
+		dbg("dblclick");
+		if (onLink(event)) return;
+		clearSelection();
+		toggleChrome("dblclick");
+	});
 }
 
 // ── Hash-based routing ──────────────────────────────────────────────────────
@@ -771,6 +795,7 @@ async function fetchJson(path) {
 
 async function initialize() {
 	// Catches double-taps in the margins around the book text (outside the iframe).
+	dbg("build 27oct-b");
 	attachDoubleTap($("book-area"));
 	try {
 		applySettings();

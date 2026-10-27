@@ -28,6 +28,9 @@ body.reader-active .reader-topbar-chapter {
   font-weight: 400;
 }
 
+/* Slim chapter title shown only while the rest of the chrome is hidden */
+.reader-strip { display: none; }
+
 @media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
   /* Lock body when reading to prevent rubber-band scrolling */
   body.reader-active {
@@ -141,6 +144,39 @@ body.reader-active .reader-topbar-chapter {
     overscroll-behavior-y: contain;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* iOS Safari can stop delivering touch events from inside the book iframe, so
+     taps are read on the page around it. Scrolling still works because the
+     scroll container sits underneath. Tradeoff: no text selection or footnote
+     links while reading on mobile. */
+  body.reader-active #book-area iframe {
+    pointer-events: none;
+  }
+
+  body.reader-active .reader-strip {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    padding: calc(env(safe-area-inset-top) + 4px) max(14px, env(safe-area-inset-right)) 4px max(14px, env(safe-area-inset-left));
+    background: var(--page);
+    color: color-mix(in srgb, var(--page) 45%, var(--ink));
+    font-size: 11px;
+    line-height: 16px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+
+  body.reader-active.reader-chrome-hidden .reader-strip {
+    opacity: 1;
   }
 
   /* Hint shown on first entry so users know how to reveal chrome */
