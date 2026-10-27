@@ -37,6 +37,7 @@ const defaults = {
 	fontSize: 18,
 	lineSpacing: 1.7,
 	width: 760,
+	sidePadding: 16,
 	flow: "scrolled-chapter",
 };
 let settings;
@@ -409,6 +410,10 @@ function applySettings() {
 	$("width").value = settings.width;
 	$("width-value").value = `${settings.width}px`;
 	$("flow").value = settings.flow;
+	if ($("side-padding")) {
+		$("side-padding").value = settings.sidePadding;
+		$("side-padding-value").value = `${settings.sidePadding}px`;
+	}
 	updateNavigationButtons();
 	localStorage.setItem("reader-settings", JSON.stringify(settings));
 	if (rendition) {
@@ -420,6 +425,12 @@ function applySettings() {
 				"font-family": `${settings.font} !important`,
 				"font-size": `${settings.fontSize}px !important`,
 				"line-height": `${settings.lineSpacing} !important`,
+				// Replace the EPUB's own side margins with an adjustable padding.
+				"margin-left": "0 !important",
+				"margin-right": "0 !important",
+				"padding-left": `${Number(settings.sidePadding)}px !important`,
+				"padding-right": `${Number(settings.sidePadding)}px !important`,
+				"box-sizing": "border-box !important",
 			},
 			p: { "line-height": `${settings.lineSpacing} !important` },
 			"a:link": { color: `${settings.foreground} !important` },
@@ -863,9 +874,9 @@ async function initialize() {
 function hideChapterHeading(doc, title) {
 	const normalize = (value) =>
 		value.replace(/[\s\p{P}\p{S}]/gu, "").toLocaleLowerCase();
-	const target = normalize(title);
+	const target = normalize(title || "");
 	const body = doc.body;
-	if (!target || !body) return;
+	if (!body) return;
 	const blocks = [...body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,div")]
 		.filter(
 			(element) =>
@@ -876,10 +887,11 @@ function hideChapterHeading(doc, title) {
 	const matches = (element) => {
 		const text = normalize(element.textContent);
 		return (
-			text === target ||
-			(text.length >= 4 &&
-				text.length <= 200 &&
-				(text.includes(target) || target.includes(text)))
+			!!target &&
+			(text === target ||
+				(text.length >= 4 &&
+					text.length <= 200 &&
+					(text.includes(target) || target.includes(text))))
 		);
 	};
 	let heading = blocks.find(matches);
@@ -901,6 +913,21 @@ function hideChapterHeading(doc, title) {
 	)
 		node = node.parentElement;
 	node.style.display = "none";
+}
+
+// Same loose href matching the top bar uses, so both always agree on the chapter label.
+function tocLabelFor(href) {
+	const target = href?.split("#")[0];
+	if (!target) return undefined;
+	return toc
+		.filter((item) => {
+			const chapter = item.href?.split("#")[0];
+			return (
+				chapter &&
+				(target.endsWith(chapter) || chapter.endsWith(target))
+			);
+		})
+		.at(-1)?.label;
 }
 
 function flattenToc(items, depth = 0) {
@@ -1020,11 +1047,10 @@ async function openBook(
 				"html,body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}",
 				"reader-touch-action",
 			);
-			const locationHref = contents.section?.href?.split("#")[0];
-			const title = toc
-				.filter((item) => item.href?.split("#")[0] === locationHref)
-				.at(-1)?.label;
-			if (title) hideChapterHeading(contents.document, title);
+			hideChapterHeading(
+				contents.document,
+				tocLabelFor(contents.section?.href),
+			);
 			attachDoubleTap(contents.document);
 		});
 		rendition.on("relocated", (location) => {
@@ -1200,8 +1226,9 @@ for (const [element, property] of [
 	["font-size", "fontSize"],
 	["line-spacing", "lineSpacing"],
 	["width", "width"],
+	["side-padding", "sidePadding"],
 ]) {
-	$(element).addEventListener("input", (event) => {
+	$(element)?.addEventListener("input", (event) => {
 		settings[property] = event.target.value;
 		applySettings();
 	});
