@@ -257,16 +257,34 @@
       </section>
 
       <section id="tab-settings" class="tab-panel">
-        <div class="page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2><p class="intro-copy">Configure your local Ollama connection and defaults for new translations.</p></div></div>
+        <div class="page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2><p class="intro-copy">Choose Ollama or an OpenAI-compatible AI router for translation.</p></div></div>
         <div class="panel settings-panel">
-          <label class="field-label" for="settings-endpoint">Ollama address</label>
-          <input id="settings-endpoint" type="text" maxlength="300" placeholder="http://localhost:11434" />
-          <p class="hint">This should point to the Ollama server that hosts your models.</p>
+          <label class="field-label" for="settings-provider">Provider</label>
+          <select id="settings-provider"><option value="ollama">Ollama</option><option value="router">AI router (OpenAI-compatible)</option></select>
+          <label class="field-label" for="settings-endpoint">Provider address</label>
+          <input id="settings-endpoint" type="text" maxlength="300" placeholder="https://openrouter.ai/api/v1" />
+          <p class="hint">The app adds /chat/completions and /models to this base URL.</p>
+          <label class="field-label" for="settings-api-key">AI router API key</label>
+          <input id="settings-api-key" type="password" maxlength="500" autocomplete="off" />
+          <label class="field-label" for="settings-instruction-file">Instruction file loaded before every translation</label>
+          <input id="settings-instruction-file" type="text" maxlength="1000" placeholder="C:\\path\\to\\instructions.txt" />
           <label class="field-label prompt-label" for="settings-prompt">Main translation prompt</label>
           <textarea id="settings-prompt" rows="7" maxlength="8000"></textarea>
           <p class="hint">Available placeholders: <code>{source_language}</code>, <code>{genre}</code>, <code>{tones}</code>, <code>{instructions}</code>, <code>{context}</code>, and <code>{glossary}</code>. Novel story context is appended automatically if <code>{context}</code> is omitted.</p>
+          <label class="field-label prompt-label" for="settings-glossary-prompt">Pre-translation glossary prompt</label>
+          <textarea id="settings-glossary-prompt" rows="6" maxlength="12000"></textarea>
+          <p class="hint">Placeholders: <code>{source_language}</code>, <code>{existing_glossary}</code>. The source chapters are sent separately.</p>
+          <label class="field-label prompt-label" for="settings-context-extraction-prompt">Story-context extraction prompt</label>
+          <textarea id="settings-context-extraction-prompt" rows="5" maxlength="12000"></textarea>
+          <p class="hint">The chapter source and translation are sent separately. Keep the prompt instructing the model to return the JSON format the app expects.</p>
+          <label class="field-label prompt-label" for="settings-context-curation-prompt">Story-context curation prompt</label>
+          <textarea id="settings-context-curation-prompt" rows="6" maxlength="12000"></textarea>
+          <p class="hint">Placeholder: <code>{context_limit}</code>. Existing and newly extracted facts are sent separately.</p>
+          <label class="field-label prompt-label" for="settings-glossary-audit-prompt">Existing glossary audit prompt</label>
+          <textarea id="settings-glossary-audit-prompt" rows="5" maxlength="12000"></textarea>
+          <p class="hint">The existing novel glossary is sent separately. The audit must return JSON with each entry ID, a keep decision, and a reason.</p>
           <label class="theme-setting"><input id="settings-dark-mode" type="checkbox" /> Use dark appearance</label>
-          <label class="theme-setting"><input id="settings-auto-retry" type="checkbox" /> Automatically retry failed Ollama requests</label>
+          <label class="theme-setting"><input id="settings-auto-retry" type="checkbox" /> Automatically retry failed provider requests</label>
           <label class="theme-setting"><input id="settings-interactive-translation" type="checkbox" /> Ask for translation choices during manual and chapter retranslation</label>
           <p class="hint">This never affects queue jobs. When enabled, the model's suggestion pauses for your choice with a 30-second auto-skip.</p>
           <p class="hint">Retries temporary connection, server, rate-limit, and incomplete-response failures up to 3 times, with increasing delays. Missing models and other client errors are reported immediately.</p>
@@ -287,7 +305,7 @@
           <div class="editor-actions"><button id="save-settings" class="button button-primary" type="button">Save settings</button></div>
           <p id="settings-message" class="inline-message" role="status"></p>
         </div>
-        <div class="panel settings-note"><h3>Local storage</h3><p>Your library files, glossary, translation jobs, and settings are stored in this app’s local data folder. They are not uploaded to a cloud service.</p></div>
+        <div class="panel settings-note"><h3>Data routing</h3><p>Ollama stays local. An AI router sends book text, prompts, glossary, and context to the configured provider. The instruction file is read locally before each translation request.</p></div>
       </section>
       <footer><span>Private by design · No cloud translation</span><span>Translation quality depends on your selected model</span></footer>
     </main>

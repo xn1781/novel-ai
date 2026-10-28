@@ -43,7 +43,10 @@ listen("interactive-translation-question", async ({ payload }) => {
   }, { once: true });
 });
 let settings = {
+  provider: "ollama",
   ollama_endpoint: "http://localhost:11434",
+  router_api_key: "",
+  instruction_file: "",
   default_source_language: "Japanese",
   default_output_format: "epub",
   default_model: "",
@@ -121,7 +124,10 @@ async function generateRecommendations() {
   message.textContent = "Checking the completed translation with your local model…";
   list.replaceChildren();
   try {
-    const suggestions = await invoke("generate_job_glossary_suggestions", { jobId: activeJob.id });
+    const suggestions = await invoke("generate_job_glossary_suggestions", {
+      jobId: activeJob.id,
+      model: $("#model").value || settings.default_model || null,
+    });
     if (!suggestions.length) {
       message.textContent = "No clear glossary terms were found.";
       return;
@@ -176,8 +182,15 @@ async function generateRecommendations() {
 async function loadSettings() {
   try {
     settings = await invoke("get_app_settings");
+    $("#settings-provider").value = settings.provider;
     $("#settings-endpoint").value = settings.ollama_endpoint;
+    $("#settings-api-key").value = settings.router_api_key;
+    $("#settings-instruction-file").value = settings.instruction_file;
     $("#settings-prompt").value = settings.translation_prompt;
+    $("#settings-glossary-prompt").value = settings.glossary_prompt;
+    $("#settings-context-extraction-prompt").value = settings.context_extraction_prompt;
+    $("#settings-context-curation-prompt").value = settings.context_curation_prompt;
+    $("#settings-glossary-audit-prompt").value = settings.glossary_audit_prompt;
     $("#settings-language").value = settings.default_source_language;
     $("#settings-output").value = settings.default_output_format;
     $("#settings-dark-mode").checked = settings.dark_mode;
@@ -695,6 +708,77 @@ async function refreshLibrary() {
 
       const glossaryToolbar = document.createElement("div");
       glossaryToolbar.className = "glossary-toolbar";
+      const cleanupButton = document.createElement("button");
+      cleanupButton.type = "button";
+      cleanupButton.className = "button button-secondary";
+      cleanupButton.textContent = "Clean up selected terms";
+      cleanupButton.addEventListener("click", async () => {
+        const selected = [...glossaryList.querySelectorAll("input[type=checkbox]:checked")].map((input) => input.value);
+        if (!selected.length || !window.confirm(`Delete ${selected.length} selected novel glossary terms?`)) return;
+        try {
+          await invoke("delete_library_glossary_entries", { bookId: book.id, entryIds: selected });
+          await refreshLibrary();
+        } catch (error) {
+          message.textContent = `Could not delete selected terms: ${error}`;
+        }
+      });
+      const auditButton = document.createElement("button");
+      auditButton.type = "button";
+      auditButton.className = "button button-secondary";
+      auditButton.textContent = "Ask AI to audit glossary";
+      const auditPanel = document.createElement("div");
+      auditPanel.className = "glossary-audit-panel";
+      auditPanel.hidden = true;
+      auditButton.addEventListener("click", async () => {
+        auditButton.disabled = true;
+        auditButton.textContent = "Analyzing…";
+        auditPanel.hidden = false;
+        auditPanel.textContent = "Analyzing existing terms. Nothing will be deleted yet.";
+        try {
+          const result = await invoke("audit_library_glossary", {
+            bookId: book.id,
+            model: $("#model").value || settings.default_model || null,
+          });
+          auditPanel.replaceChildren();
+          const heading = document.createElement("p");
+          const candidates = result.entries.filter((entry) => !entry.keep);
+          heading.textContent = `${candidates.length} deletion candidate${candidates.length === 1 ? "" : "s"}. Check any terms to keep, then confirm deletion.`;
+          auditPanel.append(heading);
+          const candidateIds = [];
+          for (const entry of candidates) {
+            const row = document.createElement("label");
+            row.className = "glossary-audit-entry";
+            const keep = document.createElement("input");
+            keep.type = "checkbox";
+            keep.checked = false;
+            keep.value = entry.id;
+            candidateIds.push(entry.id);
+            const text = document.createElement("span");
+            text.textContent = `${entry.source_term} → ${entry.target_term} — ${entry.reason}`;
+            row.append(keep, text);
+            auditPanel.append(row);
+          }
+          const confirm = document.createElement("button");
+          confirm.type = "button";
+          confirm.className = "button button-primary";
+          confirm.textContent = "Confirm deletion";
+          confirm.disabled = candidates.length === 0;
+          confirm.addEventListener("click", async () => {
+            const keepIds = new Set([...auditPanel.querySelectorAll("input:checked")].map((input) => input.value));
+            const deleteIds = candidateIds.filter((id) => !keepIds.has(id));
+            if (!deleteIds.length || !window.confirm(`Delete ${deleteIds.length} glossary terms selected by the audit?`)) return;
+            await invoke("delete_library_glossary_entries", { bookId: book.id, entryIds: deleteIds });
+            auditPanel.hidden = true;
+            await refreshLibrary();
+          });
+          auditPanel.append(confirm);
+        } catch (error) {
+          auditPanel.textContent = `Could not audit glossary: ${error}`;
+        } finally {
+          auditButton.disabled = false;
+          auditButton.textContent = "Ask AI to audit glossary";
+        }
+      });
       const generateButton = document.createElement("button");
       generateButton.type = "button";
       generateButton.className = "button button-secondary";
@@ -709,7 +793,10 @@ async function refreshLibrary() {
         const message = document.querySelector(`#book-glossary-message-${CSS.escape(book.id)}`);
         message.textContent = "Reviewing source/translation pairs with the local model…";
         try {
-          const result = await invoke("generate_library_glossary", { bookId: book.id });
+          const result = await invoke("generate_library_glossary", {
+            bookId: book.id,
+            model: $("#model").value || settings.default_model || null,
+          });
           await refreshLibrary();
           const updatedMessage = document.querySelector(`#book-glossary-message-${CSS.escape(book.id)}`);
           if (updatedMessage) {
@@ -726,8 +813,9 @@ async function refreshLibrary() {
           message.textContent = `Could not generate suggestions: ${error}`;
         }
       });
-      glossaryToolbar.append(generateButton);
+      glossaryToolbar.append(cleanupButton, auditButton, generateButton);
       glossarySection.append(glossaryToolbar);
+      glossarySection.append(auditPanel);
 
       const glossaryList = document.createElement("div");
       glossaryList.className = "book-glossary-list";
@@ -742,6 +830,10 @@ async function refreshLibrary() {
       for (const entry of book.glossary) {
         const row = document.createElement("div");
         row.className = "book-glossary-entry";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = entry.id;
+        checkbox.setAttribute("aria-label", `Select ${entry.source_term}`);
         const term = document.createElement("span");
         term.className = "book-glossary-term";
         term.textContent = `${entry.source_term} → ${entry.target_term}`;
@@ -777,7 +869,7 @@ async function refreshLibrary() {
             document.querySelector(`#book-glossary-message-${CSS.escape(book.id)}`).textContent = `Could not delete term: ${error}`;
           }
         });
-        row.append(term, note, edit, remove);
+        row.append(checkbox, term, note, edit, remove);
         glossaryList.append(row);
       }
       glossarySection.append(glossaryList);
@@ -1074,7 +1166,10 @@ async function refreshLibrary() {
           glossaryButton.disabled = true;
           glossaryButton.textContent = "Reviewing…";
           try {
-            const result = await invoke("generate_library_glossary", { bookId: book.id });
+            const result = await invoke("generate_library_glossary", {
+              bookId: book.id,
+              model: $("#model").value || settings.default_model || null,
+            });
             const warning = result.skipped_batches
               ? ` ${result.skipped_batches} batch${result.skipped_batches === 1 ? "" : "es"} could not be parsed, possibly because of mature content.`
               : "";
@@ -1526,9 +1621,49 @@ function renderGlossary(entries) {
   const list = $("#glossary-list");
   list.replaceChildren();
   $("#glossary-empty").hidden = entries.length > 0;
+  const selected = new Set();
+  const toolbar = document.createElement("div");
+  toolbar.className = "glossary-cleanup-toolbar";
+  const filter = document.createElement("input");
+  filter.type = "search";
+  filter.placeholder = "Filter terms to review…";
+  filter.setAttribute("aria-label", "Filter glossary terms");
+  const selectVisible = document.createElement("button");
+  selectVisible.type = "button";
+  selectVisible.className = "button button-secondary";
+  selectVisible.textContent = "Select visible";
+  const deleteSelected = document.createElement("button");
+  deleteSelected.type = "button";
+  deleteSelected.className = "button button-secondary";
+  deleteSelected.textContent = "Delete selected (0)";
+  const updateDeleteLabel = () => { deleteSelected.textContent = `Delete selected (${selected.size})`; };
+  const applyFilter = () => {
+    const query = filter.value.trim().toLowerCase();
+    list.querySelectorAll(".glossary-card").forEach((card) => {
+      card.hidden = query && !card.dataset.search.includes(query);
+    });
+  };
+  filter.addEventListener("input", applyFilter);
+  selectVisible.addEventListener("click", () => {
+    list.querySelectorAll(".glossary-card:not([hidden]) input[type=checkbox]").forEach((checkbox) => {
+      checkbox.checked = true;
+      selected.add(checkbox.value);
+    });
+    updateDeleteLabel();
+  });
+  deleteSelected.addEventListener("click", async () => {
+    if (!selected.size || !window.confirm(`Delete ${selected.size} selected glossary terms?`)) return;
+    try {
+      renderGlossary(await invoke("delete_glossary_entries", { ids: [...selected] }));
+      $("#glossary-message").textContent = "Selected glossary terms deleted locally.";
+    } catch (error) { $("#glossary-message").textContent = `Could not delete selected terms: ${error}`; }
+  });
+  toolbar.append(filter, selectVisible, deleteSelected);
+  list.append(toolbar);
   for (const entry of entries) {
     const card = document.createElement("article");
     card.className = "content-card glossary-card";
+    card.dataset.search = `${entry.source_term} ${entry.target_term} ${entry.note} ${entry.source_language}`.toLowerCase();
     const details = document.createElement("div");
     details.className = "card-details";
     const terms = document.createElement("h3");
@@ -1538,6 +1673,14 @@ function renderGlossary(entries) {
     details.append(terms, meta);
     const actions = document.createElement("div");
     actions.className = "card-actions";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = entry.id;
+    checkbox.setAttribute("aria-label", `Select ${entry.source_term}`);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selected.add(entry.id); else selected.delete(entry.id);
+      updateDeleteLabel();
+    });
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "button button-secondary";
@@ -1564,7 +1707,7 @@ function renderGlossary(entries) {
         $("#glossary-message").textContent = `Could not delete term: ${error}`;
       }
     });
-    actions.append(edit, remove);
+    actions.append(checkbox, edit, remove);
     card.append(details, actions);
     list.append(card);
   }
@@ -1631,13 +1774,20 @@ async function exportGlossary() {
 async function saveSettings() {
   try {
     settings = await invoke("update_app_settings", {
+      provider: $("#settings-provider").value,
       ollamaEndpoint: $("#settings-endpoint").value.trim(),
+      routerApiKey: $("#settings-api-key").value.trim(),
+      instructionFile: $("#settings-instruction-file").value.trim(),
       defaultSourceLanguage: $("#settings-language").value,
       defaultOutputFormat: $("#settings-output").value,
       defaultModel: $("#settings-model").value,
       autoRetry: $("#settings-auto-retry").checked,
       interactiveTranslation: $("#settings-interactive-translation").checked,
       translationPrompt: $("#settings-prompt").value,
+      glossaryPrompt: $("#settings-glossary-prompt").value,
+      contextExtractionPrompt: $("#settings-context-extraction-prompt").value,
+      contextCurationPrompt: $("#settings-context-curation-prompt").value,
+      glossaryAuditPrompt: $("#settings-glossary-audit-prompt").value,
       darkMode: $("#settings-dark-mode").checked,
       contextLimit: Number($("#settings-context-limit").value),
     });
@@ -1749,18 +1899,22 @@ async function chooseFiles() {
 
 async function refreshModels() {
   const status = $("#ollama-status");
-  status.textContent = "Checking Ollama…";
+  status.textContent = `Checking ${settings.provider === "router" ? "AI router" : "Ollama"}…`;
   try {
     const previous = $("#model").value || settings.default_model;
-    const models = await invoke("list_ollama_models", { endpoint: settings.ollama_endpoint });
+    const models = await invoke("list_models", {
+      provider: settings.provider,
+      endpoint: settings.ollama_endpoint,
+      apiKey: settings.router_api_key,
+    });
     const select = $("#model");
     const defaultSelect = $("#settings-model");
     select.replaceChildren();
     defaultSelect.replaceChildren(new Option("No default model", ""));
     if (!models.length) {
-      select.add(new Option("No models installed in Ollama", ""));
+      select.add(new Option("No models available", ""));
       $("#ollama-status").textContent = `Ollama is running at ${settings.ollama_endpoint}, but no models were found.`;
-      status.textContent = "Ollama is running, but no models were found. Pull a model in Ollama, then refresh.";
+      status.textContent = "The provider is reachable, but no models were found.";
       return;
     }
     for (const model of models) {
@@ -1769,11 +1923,11 @@ async function refreshModels() {
     }
     if (models.includes(previous)) select.value = previous;
     if (models.includes(settings.default_model)) defaultSelect.value = settings.default_model;
-    status.textContent = `${models.length} local model${models.length === 1 ? "" : "s"} available`;
+    status.textContent = `${models.length} model${models.length === 1 ? "" : "s"} available`;
   } catch (error) {
     $("#model").replaceChildren(new Option("Ollama unavailable", ""));
     $("#settings-model").replaceChildren(new Option("Ollama unavailable", ""));
-    status.textContent = `Could not reach Ollama at ${settings.ollama_endpoint} — ${error}`;
+      status.textContent = `Could not reach ${settings.provider === "router" ? "AI router" : "Ollama"} at ${settings.ollama_endpoint} — ${error}`;
     setStatus("Start Ollama, then refresh the model list.", true);
   }
 }
@@ -1880,7 +2034,7 @@ async function translate() {
     return;
   }
   if (!$("#model").value) {
-    setStatus("Select an installed Ollama model before translating.", true);
+    setStatus("Select an available model before translating.", true);
     return;
   }
   setBusy(true);
@@ -2027,6 +2181,10 @@ $("#save-glossary").addEventListener("click", saveGlossary);
 $("#export-glossary").addEventListener("click", exportGlossary);
 $("#cancel-glossary-edit").addEventListener("click", resetGlossaryForm);
 $("#save-settings").addEventListener("click", saveSettings);
+$("#settings-provider").addEventListener("change", () => {
+  const router = $("#settings-provider").value === "router";
+  $("#settings-endpoint").placeholder = router ? "https://openrouter.ai/api/v1" : "http://localhost:11434";
+});
 $("#theme-toggle").addEventListener("click", toggleTheme);
 
 listen("translation-progress", (event) => {
@@ -2039,6 +2197,8 @@ listen("translation-progress", (event) => {
   if (fill) {
     fill.style.width = `${total ? Math.round(completed / total * 100) : 0}%`;
     $(`#queue-progress-text-${CSS.escape(job_id)}`).textContent = `${completed} of ${total} chunks · ${formatEta(estimated_remaining_seconds)}`;
+    const chapter = document.getElementById(`queue-chapter-${job_id}`);
+    if (chapter && message) chapter.textContent = message;
   }
 }).catch((error) => {
   setStatus(`Could not subscribe to translation progress: ${error}`, true);

@@ -207,12 +207,18 @@ textarea { resize: vertical; min-height: 73px; line-height: 1.5; }
 .story-context-editor { min-height: 95px; font-family: Consolas, monospace; font-size: 10px; }
 .book-context .button { margin-top: 8px; }
 .book-context-message { min-height: 0; margin: 8px 0 0; color: #898b82; font-size: 9px; overflow-wrap: anywhere; }
-.glossary-toolbar { display: flex; justify-content: flex-end; margin-top: 11px; }
+.glossary-toolbar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 11px; }
 .glossary-toolbar .button { padding: 8px 11px; }
 .book-glossary-list { display: grid; gap: 5px; margin-top: 9px; }
-.book-glossary-entry { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; align-items: center; gap: 10px; border-bottom: 1px solid #efede7; padding: 7px 2px; font-size: 10px; }
+.book-glossary-entry { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) auto auto; align-items: center; gap: 10px; border-bottom: 1px solid #efede7; padding: 7px 2px; font-size: 10px; }
+.book-glossary-entry > input[type="checkbox"] { margin: 0; justify-self: center; }
 .book-glossary-term { color: #45483f; overflow-wrap: anywhere; }
 .book-glossary-note, .book-glossary-empty, .book-glossary-message { color: #898b82; font-size: 9px; overflow-wrap: anywhere; }
+.glossary-cleanup-toolbar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 12px; }
+.glossary-cleanup-toolbar input { flex: 1 1 220px; min-width: 150px; margin: 0; }
+.glossary-audit-panel { display: grid; gap: 7px; margin-top: 9px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 9px; }
+.glossary-audit-entry { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 7px; align-items: start; line-height: 1.4; }
+.glossary-audit-entry input { margin: 2px 0 0; }
 .book-glossary-empty { margin: 8px 0; }
 .book-glossary-message { min-height: 0; margin: 8px 0 0; }
 .book-glossary-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto auto; align-items: center; gap: 7px; margin-top: 10px; }
@@ -387,8 +393,8 @@ footer { display: flex; justify-content: space-between; gap: 10px; padding: 17px
   .book-glossary-form input:first-child,
   .book-glossary-form input:nth-child(2),
   .book-glossary-form input:nth-child(3) { grid-column: 1 / -1; }
-  .book-glossary-entry { grid-template-columns: 1fr auto auto; }
-  .book-glossary-note { grid-column: 1 / -1; grid-row: 2; }
+  .book-glossary-entry { grid-template-columns: 20px minmax(0, 1fr) auto auto auto; gap: 7px; }
+  .book-glossary-note { grid-column: 2 / -1; grid-row: 2; }
   .book-title-row { grid-template-columns: 20px 1fr; }
   .book-title-row .button { grid-column: 2; justify-self: start; }
   .library-language { align-items: flex-start; flex-direction: column; gap: 2px; }

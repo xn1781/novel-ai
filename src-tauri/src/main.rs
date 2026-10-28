@@ -75,6 +75,8 @@ struct Job {
     #[serde(default)]
     glossary: Vec<GlossaryEntry>,
     #[serde(default)]
+    glossary_preflight_complete: bool,
+    #[serde(default)]
     context: Vec<String>,
     #[serde(default)]
     context_update_failures: Vec<String>,
@@ -508,6 +510,18 @@ struct GlossarySuggestion {
 }
 
 #[derive(Deserialize)]
+struct GlossaryAuditSuggestion {
+    id: String,
+    #[serde(default)]
+    keep: bool,
+    #[serde(default)]
+    reason: String,
+}
+
+const MAX_GLOSSARY_PREFLIGHT_CHARS: usize = 12_000;
+const MAX_GLOSSARY_PREFLIGHT_SECTIONS: usize = 8;
+
+#[derive(Deserialize)]
 struct ContextSuggestion {
     fact: String,
 }
@@ -532,7 +546,13 @@ struct GlossaryGenerationResult {
 
 #[derive(Clone, Serialize, Deserialize)]
 struct AppSettings {
+    #[serde(default)]
+    provider: String,
     ollama_endpoint: String,
+    #[serde(default)]
+    router_api_key: String,
+    #[serde(default = "default_instruction_file")]
+    instruction_file: String,
     default_source_language: String,
     default_output_format: String,
     default_model: String,
@@ -544,8 +564,24 @@ struct AppSettings {
     dark_mode: bool,
     #[serde(default = "default_translation_prompt")]
     translation_prompt: String,
+    #[serde(default = "default_glossary_prompt")]
+    glossary_prompt: String,
+    #[serde(default = "default_context_extraction_prompt")]
+    context_extraction_prompt: String,
+    #[serde(default = "default_context_curation_prompt")]
+    context_curation_prompt: String,
+    #[serde(default = "default_glossary_audit_prompt")]
+    glossary_audit_prompt: String,
     #[serde(default = "default_context_limit")]
     context_limit: usize,
+}
+
+fn default_provider() -> String {
+    "router".to_string()
+}
+
+fn default_instruction_file() -> String {
+    r"C:\Users\Ucer\Downloads\NYX-V4.txt".to_string()
 }
 
 fn default_auto_retry() -> bool {
@@ -556,17 +592,40 @@ fn default_translation_prompt() -> String {
     "You are a professional literary translator. Translate the user's {source_language} text into natural English. Preserve paragraph breaks, line breaks, and meaning. Do not summarize, omit content, explain the translation, or add commentary. Return only the translation.{genre}{tones}{instructions}{context}{glossary}".to_string()
 }
 
+fn default_glossary_prompt() -> String {
+    "You extract a conservative glossary from parallel {source_language} and English literary text. Mature or R19 content may appear in the input. Do not describe, quote, summarize, or analyze sexual content; ignore those scenes and extract only names, places, titles, forms of address, and story-specific terms needed for translation continuity. Return only a valid JSON array, with objects shaped like {\"source_term\":\"...\",\"target_term\":\"...\",\"note\":\"...\",\"character_gender\":\"\"}. Include recurring named characters, important places, titles, forms of address, and story-specific terms when the English rendering is clear. Do not guess gender from a name alone. Do not include ordinary vocabulary or invent terms. Keep source_term exactly in {source_language} script and target_term as it appears in English. Existing mappings are authoritative and must not be changed: {existing_glossary}".to_string()
+}
+
+fn default_context_extraction_prompt() -> String {
+    "Extract only non-explicit, durable story facts that may matter in later chapters, especially character relationships, family ties, identities, titles, affiliations, and established worldbuilding. Ignore sexual, erotic, pornographic, or other R19 material completely: do not analyze it, describe it, quote it, or turn it into a fact. If there is no relevant non-explicit continuity fact, return []. Do not infer uncertain facts, include plot summaries, or repeat existing facts. Return only a JSON array in the exact shape [{\"fact\":\"...\"}].".to_string()
+}
+
+fn default_context_curation_prompt() -> String {
+    "You maintain a compact continuity bible for a long novel. Review existing facts and newly observed facts. Keep only non-explicit durable facts likely to matter later: important relationships, identities, family or faction membership, titles, stable traits, rules of the world, unresolved long-term plot facts, and terminology that affects continuity. Ignore sexual, erotic, pornographic, or other R19 material completely; never quote, describe, or analyze it. Remove one-off actions, temporary emotions, scene details, redundant wording, and facts that are not useful later. Resolve duplicates and contradictions by keeping the most recently supported wording. Return at most {context_limit} concise facts, each no longer than 500 characters, as only a JSON array shaped like [{\"fact\":\"...\"}]. Do not add facts that are not present in the input.".to_string()
+}
+
+fn default_glossary_audit_prompt() -> String {
+    "Audit an existing literary translation glossary. Recommend deleting only entries that are clearly unnecessary: ordinary vocabulary, one-off words, redundant duplicates, overly broad phrases, or entries that do not help preserve named-entity or terminology consistency. Keep character names, places, organizations, titles, honorifics, abilities, items, recurring phrases, and any entry that could prevent inconsistent translation. Be conservative. Return only a JSON array of objects shaped like {\"id\":\"...\",\"keep\":true,\"reason\":\"...\"}. Include every supplied ID exactly once. The user will review deletion recommendations before anything is removed.".to_string()
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            ollama_endpoint: "http://localhost:11434".to_string(),
+            provider: default_provider(),
+            ollama_endpoint: "https://openrouter.ai/api/v1".to_string(),
+            router_api_key: String::new(),
+            instruction_file: default_instruction_file(),
             default_source_language: "Japanese".to_string(),
             default_output_format: "epub".to_string(),
-            default_model: String::new(),
+            default_model: "gpt-6".to_string(),
             auto_retry: default_auto_retry(),
             interactive_translation: false,
             dark_mode: false,
             translation_prompt: default_translation_prompt(),
+            glossary_prompt: default_glossary_prompt(),
+            context_extraction_prompt: default_context_extraction_prompt(),
+            context_curation_prompt: default_context_curation_prompt(),
+            glossary_audit_prompt: default_glossary_audit_prompt(),
             context_limit: default_context_limit(),
         }
     }
@@ -601,6 +660,13 @@ struct ChatRequest<'a> {
 }
 
 #[derive(Serialize)]
+struct OpenAiChatRequest<'a> {
+    model: &'a str,
+    messages: Vec<ChatMessage<'a>>,
+    temperature: f32,
+}
+
+#[derive(Serialize)]
 struct ChatMessage<'a> {
     role: &'a str,
     content: String,
@@ -625,6 +691,16 @@ struct ChatResponse {
     done_reason: Option<String>,
     #[serde(default)]
     eval_count: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiChatResponse {
+    choices: Vec<OpenAiChoice>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiChoice {
+    message: ChatOutput,
 }
 
 fn empty_translation_reason(response: &ChatResponse, section_index: usize) -> String {
@@ -681,8 +757,13 @@ fn load_settings(app: &AppHandle) -> Result<AppSettings> {
     if !path.exists() {
         return Ok(AppSettings::default());
     }
-    serde_json::from_slice(&fs::read(path).context("reading application settings")?)
-        .context("decoding application settings")
+    let bytes = fs::read(path).context("reading application settings")?;
+    let mut settings: AppSettings =
+        serde_json::from_slice(&bytes).context("decoding application settings")?;
+    if settings.provider.trim().is_empty() {
+        settings.provider = "ollama".to_string();
+    }
+    Ok(settings)
 }
 
 fn glossary_path(app: &AppHandle) -> Result<PathBuf> {
@@ -895,6 +976,14 @@ fn should_retry_http_status(status: reqwest::StatusCode) -> bool {
     status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
 }
 
+fn inappropriate_content_warning(content: &str) -> bool {
+    let normalized = content.to_ascii_lowercase();
+    normalized.contains("may contain inappropriate")
+        || normalized.contains("might contain inappropriate")
+        || normalized.contains("inappropriate content")
+        || normalized.contains("内容可能不适")
+}
+
 async fn report_translation_retry(
     window: &tauri::Window,
     job: &Job,
@@ -914,7 +1003,7 @@ async fn report_translation_retry(
                     job.elapsed_translation_millis,
                 ),
                 message: format!(
-                    "Ollama request failed ({reason}). Retrying in {}s (retry {retry_number}/{MAX_TRANSLATION_RETRIES})…",
+                    "{reason} Retrying in {}s (retry {retry_number}/{MAX_TRANSLATION_RETRIES})…",
                     2u64.pow(retry_number as u32)
                 ),
             },
@@ -1310,12 +1399,42 @@ fn resolve_epub_asset(chapter: &str, reference: &str) -> Option<String> {
 }
 
 #[tauri::command]
-async fn list_ollama_models(endpoint: String) -> Result<Vec<String>, String> {
-    let url = endpoint_url(&endpoint, "api/tags").map_err(|error| error.to_string())?;
+async fn list_models(
+    provider: String,
+    endpoint: String,
+    api_key: String,
+) -> Result<Vec<String>, String> {
     let client = Client::builder()
         .timeout(Duration::from_secs(8))
         .build()
         .map_err(|error| error.to_string())?;
+    if provider == "router" {
+        let url = endpoint_url(&endpoint, "models").map_err(|error| error.to_string())?;
+        let response = client
+            .get(url)
+            .bearer_auth(api_key.trim())
+            .send()
+            .await
+            .map_err(|error| format!("connecting to AI router: {error}"))?;
+        if !response.status().is_success() {
+            return Err(format!("AI router returned HTTP {}", response.status()));
+        }
+        #[derive(Deserialize)]
+        struct ModelList {
+            data: Vec<ModelId>,
+        }
+        #[derive(Deserialize)]
+        struct ModelId {
+            id: String,
+        }
+        let mut models: ModelList = response
+            .json()
+            .await
+            .map_err(|error| format!("reading AI router model list: {error}"))?;
+        models.data.sort_by(|left, right| left.id.cmp(&right.id));
+        return Ok(models.data.into_iter().map(|model| model.id).collect());
+    }
+    let url = endpoint_url(&endpoint, "api/tags").map_err(|error| error.to_string())?;
     let response = client
         .get(url)
         .send()
@@ -1471,6 +1590,7 @@ fn create_job_from_paths(
         queue_order,
         translation_prompt,
         glossary,
+        glossary_preflight_complete: false,
         context,
         context_update_failures: Vec::new(),
         context_limit,
@@ -1518,20 +1638,36 @@ fn get_app_settings(app: AppHandle) -> Result<AppSettings, String> {
 #[tauri::command]
 fn update_app_settings(
     app: AppHandle,
+    provider: String,
     ollama_endpoint: String,
+    router_api_key: String,
+    instruction_file: String,
     default_source_language: String,
     default_output_format: String,
     default_model: String,
     auto_retry: bool,
     interactive_translation: bool,
     translation_prompt: String,
+    glossary_prompt: String,
+    context_extraction_prompt: String,
+    context_curation_prompt: String,
+    glossary_audit_prompt: String,
     dark_mode: bool,
     context_limit: usize,
 ) -> Result<AppSettings, String> {
     let endpoint =
         Url::parse(&ollama_endpoint).map_err(|error| format!("Invalid Ollama URL: {error}"))?;
+    if !matches!(provider.as_str(), "ollama" | "router") {
+        return Err("Provider must be Ollama or AI router.".into());
+    }
     if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
-        return Err("Ollama address must be an HTTP or HTTPS URL.".into());
+        return Err("Provider address must be an HTTP or HTTPS URL.".into());
+    }
+    if provider == "router" && router_api_key.trim().is_empty() {
+        return Err("An AI router API key is required.".into());
+    }
+    if instruction_file.chars().count() > 1000 {
+        return Err("Instruction file path is too long.".into());
     }
     if !matches!(default_source_language.as_str(), "Japanese" | "Korean") {
         return Err("Default source language must be Japanese or Korean.".into());
@@ -1542,19 +1678,33 @@ fn update_app_settings(
     if translation_prompt.trim().is_empty() {
         return Err("Translation prompt cannot be empty.".into());
     }
+    if glossary_prompt.trim().is_empty()
+        || context_extraction_prompt.trim().is_empty()
+        || context_curation_prompt.trim().is_empty()
+        || glossary_audit_prompt.trim().is_empty()
+    {
+        return Err("All model prompts must contain text.".into());
+    }
     if !(1..=MAX_CONTEXT_FACTS).contains(&context_limit) {
         return Err(format!(
             "Story context facts to keep must be between 1 and {MAX_CONTEXT_FACTS}."
         ));
     }
     let settings = AppSettings {
+        provider,
         ollama_endpoint: ollama_endpoint.trim_end_matches('/').to_string(),
+        router_api_key: router_api_key.trim().to_string(),
+        instruction_file: instruction_file.trim().to_string(),
         default_source_language,
         default_output_format,
         default_model,
         auto_retry,
         interactive_translation,
         translation_prompt: translation_prompt.trim().to_string(),
+        glossary_prompt: glossary_prompt.trim().to_string(),
+        context_extraction_prompt: context_extraction_prompt.trim().to_string(),
+        context_curation_prompt: context_curation_prompt.trim().to_string(),
+        glossary_audit_prompt: glossary_audit_prompt.trim().to_string(),
         dark_mode,
         context_limit,
     };
@@ -3092,6 +3242,117 @@ fn parse_glossary_suggestions(response: &str) -> Result<Vec<GlossarySuggestion>>
     serde_json::from_str(&response[start..=end]).context("parsing generated glossary terms")
 }
 
+fn build_glossary_prompt(template: &str, language: &str, existing: &[GlossaryEntry]) -> String {
+    let existing = existing
+        .iter()
+        .map(|entry| format!("{} => {}", entry.source_term, entry.target_term))
+        .collect::<Vec<_>>()
+        .join("\n");
+    template
+        .replace("{source_language}", language)
+        .replace("{existing_glossary}", &existing)
+}
+
+fn merge_generated_glossary(
+    existing: &mut Vec<GlossaryEntry>,
+    suggestions: Vec<GlossarySuggestion>,
+    source_language: &str,
+) -> usize {
+    let before = existing.len();
+    for suggestion in suggestions {
+        let source_term = suggestion.source_term.trim();
+        let target_term = suggestion.target_term.trim();
+        if source_term.is_empty()
+            || target_term.is_empty()
+            || source_term.chars().count() > 160
+            || target_term.chars().count() > 160
+            || existing.iter().any(|entry| {
+                entry.source_language == source_language
+                    && entry.source_term.eq_ignore_ascii_case(source_term)
+            })
+        {
+            continue;
+        }
+        existing.push(GlossaryEntry {
+            id: Uuid::new_v4().to_string(),
+            source_language: source_language.to_string(),
+            source_term: source_term.to_string(),
+            target_term: target_term.to_string(),
+            note: suggestion.note.trim().to_string(),
+            character_gender: suggestion.character_gender.trim().to_string(),
+        });
+    }
+    existing.len() - before
+}
+
+async fn generate_preflight_glossary(
+    app: &AppHandle,
+    job: &Job,
+    client: &Client,
+    window: &tauri::Window,
+    max_retries: usize,
+) -> Result<Vec<GlossaryEntry>, String> {
+    let settings = load_settings(app).map_err(|error| error.to_string())?;
+    let mut glossary = job.glossary.clone();
+    let system = build_glossary_prompt(&settings.glossary_prompt, &job.source_language, &glossary);
+    for (batch_index, sections) in job
+        .sections
+        .chunks(4)
+        .take((MAX_GLOSSARY_PREFLIGHT_SECTIONS + 3) / 4)
+        .enumerate()
+    {
+        let source = sections
+            .iter()
+            .map(|section| section.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n--- CHAPTER ---\n\n");
+        let source = bound_context_text(&source, MAX_GLOSSARY_PREFLIGHT_CHARS);
+        let response = send_chat_completion(
+            client,
+            &job.model,
+            vec![
+                ChatMessage {
+                    role: "system",
+                    content: system.clone(),
+                },
+                ChatMessage {
+                    role: "user",
+                    content: source,
+                },
+            ],
+            Some(&settings.ollama_endpoint),
+            &settings.provider,
+            &settings.router_api_key,
+            None,
+            max_retries,
+            window,
+            job,
+            batch_index,
+            0,
+        )
+        .await?;
+        if let Ok(suggestions) = parse_glossary_suggestions(&response) {
+            merge_generated_glossary(&mut glossary, suggestions, &job.source_language);
+        }
+        window
+            .emit(
+                "translation-progress",
+                Progress {
+                    job_id: job.id.clone(),
+                    completed: 0,
+                    total: job.total_chunks,
+                    estimated_remaining_seconds: None,
+                    message: format!(
+                        "Prepared terminology from the first {} chapters…",
+                        ((batch_index + 1) * 4).min(MAX_GLOSSARY_PREFLIGHT_SECTIONS)
+                    ),
+                },
+            )
+            .map_err(|error| format!("reporting glossary progress: {error}"))?;
+    }
+    Ok(glossary)
+}
+
 fn parse_context_suggestions(response: &str) -> Result<Vec<ContextSuggestion>> {
     let start = response
         .find('[')
@@ -3163,6 +3424,8 @@ fn bound_context_text(context: &str, limit: usize) -> String {
 async fn collect_glossary_suggestions(
     app: &AppHandle,
     job: &Job,
+    window: &tauri::Window,
+    requested_model: Option<String>,
 ) -> Result<(Vec<GlossaryEntry>, usize), String> {
     if job.completed_sections != job.section_count
         || job
@@ -3173,14 +3436,19 @@ async fn collect_glossary_suggestions(
         return Err("Finish translating this novel before generating its glossary.".into());
     }
     let settings = load_settings(app).map_err(|error| error.to_string())?;
-    let model = if job.model.trim().is_empty() {
+    let model = if requested_model
+        .as_deref()
+        .is_some_and(|model| !model.trim().is_empty())
+    {
+        requested_model.unwrap_or_default()
+    } else if job.model.trim().is_empty() {
         settings.default_model
     } else {
         job.model.clone()
     };
     if model.trim().is_empty() {
         return Err(
-            "Set a default Ollama model in Settings before generating glossary terms.".into(),
+            "Set a default provider model in Settings before generating glossary terms.".into(),
         );
     }
     let endpoint = settings.ollama_endpoint;
@@ -3190,6 +3458,19 @@ async fn collect_glossary_suggestions(
         .map_err(|error| error.to_string())?;
     let mut suggestions = std::collections::BTreeMap::new();
     let mut skipped_batches = 0;
+    let instruction_text = if settings.instruction_file.trim().is_empty() {
+        None
+    } else {
+        Some(
+            fs::read_to_string(&settings.instruction_file)
+                .map_err(|error| format!("Reading instruction file: {error}"))?,
+        )
+    };
+    let max_retries = if settings.auto_retry {
+        MAX_TRANSLATION_RETRIES
+    } else {
+        0
+    };
     for (section_index, section) in job.sections.iter().enumerate() {
         let source_chunks = split_translation_chunks(&section.text, 3000);
         if source_chunks.len() != section.translated_chunks.len() {
@@ -3212,46 +3493,36 @@ async fn collect_glossary_suggestions(
                 })
                 .collect::<Vec<_>>()
                 .join("\n\n---\n\n");
-            let request = ChatRequest {
-                model: &model,
-                messages: vec![
+            let system = build_glossary_prompt(
+                &settings.glossary_prompt,
+                &job.source_language,
+                &job.glossary,
+            );
+            let output = send_chat_completion(
+                &client,
+                &model,
+                vec![
                     ChatMessage {
                         role: "system",
-                        content: format!(
-                            "You extract a conservative glossary from parallel {} and English literary text. Mature or R19 content may appear in the input. Do not describe, quote, summarize, or analyze sexual content; ignore those scenes and extract only names, places, titles, forms of address, and story-specific terms needed for translation continuity. Return only a valid JSON array, with objects shaped like {{\"source_term\":\"...\",\"target_term\":\"...\",\"note\":\"...\",\"character_gender\":\"\"}}. Include every recurring named character that appears in non-explicit paired text, as well as important places, titles, forms of address, and story-specific terms, when the English rendering is clear. For each clearly identified character, set character_gender to exactly one concise value such as male, female, nonbinary, or unknown. This gender field is important for resolving Korean and Japanese pronouns and forms of address. Do not guess a gender from a name alone; use explicit source text, pronouns, titles, or the established English translation. Leave character_gender empty for non-characters. Do not include ordinary vocabulary or invent terms. Keep source_term exactly in {} script and target_term as it appears in English.",
-                            job.source_language, job.source_language
-                        ),
+                        content: system,
                     },
                     ChatMessage {
                         role: "user",
                         content: examples,
                     },
                 ],
-                stream: false,
-                think: false,
-                options: ChatOptions { temperature: 0.1 },
-            };
-            let response = client
-                .post(endpoint_url(&endpoint, "api/chat").map_err(|error| error.to_string())?)
-                .json(&request)
-                .send()
-                .await
-                .map_err(|error| format!("Ollama glossary request failed: {error}"))?;
-            if !response.status().is_success() {
-                let status = response.status();
-                let detail = response.text().await.unwrap_or_else(|error| {
-                    format!("unable to read Ollama error response: {error}")
-                });
-                return Err(format!(
-                    "Ollama returned HTTP {status} while generating glossary terms: {}",
-                    detail.trim()
-                ));
-            }
-            let output: ChatResponse = response
-                .json()
-                .await
-                .map_err(|error| format!("Reading generated glossary response: {error}"))?;
-            let batch_suggestions = match parse_glossary_suggestions(&output.message.content) {
+                Some(&endpoint),
+                &settings.provider,
+                &settings.router_api_key,
+                instruction_text.as_deref(),
+                max_retries,
+                window,
+                job,
+                section_index,
+                batch_index,
+            )
+            .await?;
+            let batch_suggestions = match parse_glossary_suggestions(&output) {
                 Ok(suggestions) => suggestions,
                 Err(_) => {
                     skipped_batches += 1;
@@ -3290,15 +3561,21 @@ async fn collect_glossary_suggestions(
 async fn generate_job_glossary_suggestions(
     app: AppHandle,
     job_id: String,
+    window: tauri::Window,
+    model: Option<String>,
 ) -> Result<Vec<GlossaryEntry>, String> {
     let job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
-    Ok(collect_glossary_suggestions(&app, &job).await?.0)
+    Ok(collect_glossary_suggestions(&app, &job, &window, model)
+        .await?
+        .0)
 }
 
 #[tauri::command]
 async fn generate_library_glossary(
     app: AppHandle,
     book_id: String,
+    window: tauri::Window,
+    model: Option<String>,
 ) -> Result<GlossaryGenerationResult, String> {
     let mut book = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
     let job_id = book
@@ -3306,7 +3583,8 @@ async fn generate_library_glossary(
         .as_deref()
         .ok_or_else(|| "Translate this novel before generating a glossary.".to_string())?;
     let job = load_job(&app, job_id).map_err(|error| error.to_string())?;
-    let (suggestions, skipped_batches) = collect_glossary_suggestions(&app, &job).await?;
+    let (suggestions, skipped_batches) =
+        collect_glossary_suggestions(&app, &job, &window, model).await?;
     let before = book.glossary.len();
     for suggestion in suggestions {
         if !book.glossary.iter().any(|existing| {
@@ -3323,6 +3601,186 @@ async fn generate_library_glossary(
         glossary: book.glossary,
         added,
         skipped_batches,
+    })
+}
+
+#[derive(Serialize)]
+struct GlossaryAuditResult {
+    entries: Vec<GlossaryAuditItem>,
+}
+
+#[derive(Serialize)]
+struct GlossaryAuditItem {
+    id: String,
+    source_term: String,
+    target_term: String,
+    keep: bool,
+    reason: String,
+}
+
+fn parse_glossary_audit(response: &str) -> Result<Vec<GlossaryAuditSuggestion>> {
+    let trimmed = response
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+    if let Ok(items) = serde_json::from_str::<Vec<GlossaryAuditSuggestion>>(trimmed) {
+        return Ok(items);
+    }
+    if let Ok(object) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Some(items) = object
+            .get("entries")
+            .or_else(|| object.get("decisions"))
+            .and_then(|value| value.as_array())
+        {
+            return serde_json::from_value(serde_json::Value::Array(items.clone()))
+                .context("parsing glossary audit entries");
+        }
+    }
+    let start = response
+        .find('[')
+        .ok_or_else(|| anyhow!("model response did not contain a JSON array or entries object"))?;
+    let end = response
+        .rfind(']')
+        .ok_or_else(|| anyhow!("model response contained an incomplete JSON array"))?;
+    serde_json::from_str(&response[start..=end]).context("parsing glossary audit")
+}
+
+#[tauri::command]
+async fn audit_library_glossary(
+    app: AppHandle,
+    book_id: String,
+    window: tauri::Window,
+    model: Option<String>,
+) -> Result<GlossaryAuditResult, String> {
+    let book = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
+    if book.glossary.is_empty() {
+        return Ok(GlossaryAuditResult {
+            entries: Vec::new(),
+        });
+    }
+    let job_id = book
+        .job_id
+        .as_deref()
+        .ok_or("This novel has no translation job.")?;
+    let job = load_job(&app, job_id).map_err(|error| error.to_string())?;
+    let settings = load_settings(&app).map_err(|error| error.to_string())?;
+    let selected_model = model
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            if !job.model.trim().is_empty() {
+                job.model.clone()
+            } else {
+                settings.default_model.clone()
+            }
+        });
+    if selected_model.trim().is_empty() {
+        return Err("Select a model before auditing the glossary.".into());
+    }
+    let entries = book
+        .glossary
+        .iter()
+        .map(|entry| {
+            format!(
+                "ID: {}\n{} -> {}\nNote: {}",
+                entry.id, entry.source_term, entry.target_term, entry.note
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let client = Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let audit_system = settings.glossary_audit_prompt.clone();
+    let output = send_chat_completion(
+        &client,
+        &selected_model,
+        vec![
+            ChatMessage {
+                role: "system",
+                content: audit_system.clone(),
+            },
+            ChatMessage {
+                role: "user",
+                content: entries.clone(),
+            },
+        ],
+        Some(&settings.ollama_endpoint),
+        &settings.provider,
+        &settings.router_api_key,
+        None,
+        if settings.auto_retry {
+            MAX_TRANSLATION_RETRIES
+        } else {
+            0
+        },
+        &window,
+        &job,
+        0,
+        0,
+    )
+    .await?;
+    let output = if parse_glossary_audit(&output).is_ok() {
+        output
+    } else {
+        send_chat_completion(
+            &client,
+            &selected_model,
+            vec![
+                ChatMessage {
+                    role: "system",
+                    content: format!(
+                        "{audit_system}\n\nYour previous response was invalid. Do not acknowledge the request or summarize the terms. Return ONLY a JSON array. Every object must have exactly these fields: id, keep, and reason. Include every supplied ID exactly once."
+                    ),
+                },
+                ChatMessage {
+                    role: "user",
+                    content: entries,
+                },
+            ],
+            Some(&settings.ollama_endpoint),
+            &settings.provider,
+            &settings.router_api_key,
+            None,
+            if settings.auto_retry { MAX_TRANSLATION_RETRIES } else { 0 },
+            &window,
+            &job,
+            0,
+            1,
+        )
+        .await?
+    };
+    let decisions = parse_glossary_audit(&output).map_err(|error| {
+        let preview = output
+            .chars()
+            .take(240)
+            .collect::<String>()
+            .replace('\n', " ");
+        format!("{error}. Model response preview: {preview}")
+    })?;
+    let mut by_id = std::collections::HashMap::new();
+    for decision in decisions {
+        by_id.insert(decision.id.clone(), decision);
+    }
+    Ok(GlossaryAuditResult {
+        entries: book
+            .glossary
+            .into_iter()
+            .map(|entry| {
+                let decision = by_id.remove(&entry.id);
+                GlossaryAuditItem {
+                    id: entry.id,
+                    source_term: entry.source_term,
+                    target_term: entry.target_term,
+                    keep: decision.as_ref().is_none_or(|item| item.keep),
+                    reason: decision
+                        .map(|item| item.reason)
+                        .unwrap_or_else(|| "Model did not recommend removing this entry.".into()),
+                }
+            })
+            .collect(),
     })
 }
 
@@ -3819,6 +4277,30 @@ fn delete_glossary_entry(app: AppHandle, id: String) -> Result<Vec<GlossaryEntry
 }
 
 #[tauri::command]
+fn delete_glossary_entries(app: AppHandle, ids: Vec<String>) -> Result<Vec<GlossaryEntry>, String> {
+    let ids = ids.into_iter().collect::<std::collections::HashSet<_>>();
+    let mut entries = load_glossary(&app).map_err(|error| error.to_string())?;
+    entries.retain(|entry| !ids.contains(&entry.id));
+    save_glossary(&app, &entries).map_err(|error| error.to_string())?;
+    Ok(entries)
+}
+
+#[tauri::command]
+fn delete_library_glossary_entries(
+    app: AppHandle,
+    book_id: String,
+    entry_ids: Vec<String>,
+) -> Result<LibraryBook, String> {
+    let mut book = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
+    let ids = entry_ids
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    book.glossary.retain(|entry| !ids.contains(&entry.id));
+    save_library_book(&app, &book).map_err(|error| error.to_string())?;
+    Ok(book)
+}
+
+#[tauri::command]
 fn list_jobs(app: AppHandle) -> Result<Vec<JobSummary>, String> {
     let directory = jobs_dir(&app).map_err(|error| error.to_string())?;
     let mut jobs = Vec::new();
@@ -3875,27 +4357,14 @@ async fn set_queue_model(app: AppHandle, job_id: String, model: String) -> Resul
         return Err("Select a valid model.".into());
     }
     let settings = load_settings(&app).map_err(|error| error.to_string())?;
-    let endpoint =
-        endpoint_url(&settings.ollama_endpoint, "api/tags").map_err(|error| error.to_string())?;
-    let client = Client::builder()
-        .timeout(Duration::from_secs(8))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let models: OllamaTags = client
-        .get(endpoint)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .json()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !models
-        .models
-        .iter()
-        .any(|available| available.name == model)
-    {
+    let models = list_models(
+        settings.provider.clone(),
+        settings.ollama_endpoint.clone(),
+        settings.router_api_key.clone(),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    if !models.iter().any(|available| available == model) {
         return Err("The selected model is not installed on the configured Ollama server.".into());
     }
     if job.queue_status.as_deref() == Some("Translating") {
@@ -4109,6 +4578,7 @@ fn update_job_settings(
         job.context_update_failures.clear();
         job.translation_prompt = settings.translation_prompt;
         job.glossary = glossary;
+        job.glossary_preflight_complete = false;
     }
     job.source_language = source_language;
     job.output_format = output_format;
@@ -4124,7 +4594,10 @@ fn update_job_settings(
 async fn generate_section_context(
     client: &Client,
     endpoint: &str,
+    provider: &str,
+    router_api_key: &str,
     job: &Job,
+    extraction_prompt: &str,
     section_index: usize,
     window: &tauri::Window,
     max_retries: usize,
@@ -4140,7 +4613,7 @@ async fn generate_section_context(
             section_index + 1
         ));
     }
-    let system = "Extract only non-explicit, durable story facts that may matter in later chapters, especially character relationships, family ties, identities, titles, affiliations, and established worldbuilding. Ignore sexual, erotic, pornographic, or other R19 material completely: do not analyze it, describe it, quote it, or turn it into a fact. If the text contains no relevant non-explicit continuity fact, return []. Do not infer uncertain facts, include plot summaries, or repeat existing facts. Return only a JSON array in the exact shape [{\"fact\":\"...\"}].";
+    let system = extraction_prompt;
     let existing = if job.context.is_empty() {
         "(none)".to_string()
     } else {
@@ -4162,96 +4635,40 @@ async fn generate_section_context(
             })
             .collect::<Vec<_>>()
             .join("\n\n---\n\n");
-        let request = ChatRequest {
-            model: &job.model,
-            messages: vec![
-                ChatMessage {
-                    role: "system",
-                    content: system.into(),
-                },
-                ChatMessage {
-                    role: "user",
-                    content: format!(
-                        "Chapter: {}\nChunks {}–{} of {}\nExisting story context:\n{}\n\n{}",
-                        section.title,
-                        first + 1,
-                        first + source_batch.len(),
-                        source_chunks.len(),
-                        existing,
-                        examples
-                    ),
-                },
-            ],
-            stream: false,
-            think: false,
-            options: ChatOptions { temperature: 0.1 },
-        };
-        let request_url = endpoint_url(endpoint, "api/chat").map_err(|error| error.to_string())?;
-        let mut result = None;
-        let mut last_failure = None;
-        for attempt in 0..=max_retries {
-            match client.post(request_url.clone()).json(&request).send().await {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<ChatResponse>().await {
-                        Ok(response) => {
-                            match parse_context_suggestions(&response.message.content) {
-                                Ok(parsed) => {
-                                    result = Some(parsed);
-                                    break;
-                                }
-                                Err(error) => {
-                                    let _ = error;
-                                    result = Some(Vec::new());
-                                    break;
-                                }
-                            }
-                        }
-                        Err(error) => {
-                            let reason = format!(
-                                "reading context response for section {}: {error}",
-                                section_index + 1
-                            );
-                            last_failure = Some(reason.clone());
-                            if attempt == max_retries {
-                                break;
-                            }
-                            report_translation_retry(window, job, attempt + 1, &reason).await?;
-                        }
-                    }
-                }
-                Ok(response) => {
-                    let status = response.status();
-                    let reason = format!(
-                        "Ollama returned HTTP {status} while extracting context for section {}.",
-                        section_index + 1
-                    );
-                    if !should_retry_http_status(status) || attempt == max_retries {
-                        return Err(reason);
-                    }
-                    last_failure = Some(reason.clone());
-                    report_translation_retry(window, job, attempt + 1, &reason).await?;
-                }
-                Err(error) => {
-                    let reason = format!(
-                        "Ollama request failed while extracting context for section {}: {error}",
-                        section_index + 1
-                    );
-                    last_failure = Some(reason.clone());
-                    if attempt == max_retries {
-                        break;
-                    }
-                    report_translation_retry(window, job, attempt + 1, &reason).await?;
-                }
-            }
-        }
-        suggestions.extend(result.ok_or_else(|| {
-            last_failure.unwrap_or_else(|| {
-                format!(
-                    "Context extraction failed for section {}.",
-                    section_index + 1
-                )
-            })
-        })?);
+        let messages = vec![
+            ChatMessage {
+                role: "system",
+                content: system.to_string(),
+            },
+            ChatMessage {
+                role: "user",
+                content: format!(
+                    "Chapter: {}\nChunks {}–{} of {}\nExisting story context:\n{}\n\n{}",
+                    section.title,
+                    first + 1,
+                    first + source_batch.len(),
+                    source_chunks.len(),
+                    existing,
+                    examples
+                ),
+            },
+        ];
+        let response = send_chat_completion(
+            client,
+            &job.model,
+            messages,
+            Some(endpoint),
+            provider,
+            router_api_key,
+            None,
+            max_retries,
+            window,
+            job,
+            section_index,
+            first,
+        )
+        .await?;
+        suggestions.extend(parse_context_suggestions(&response).unwrap_or_default());
     }
     Ok(suggestions)
 }
@@ -4260,21 +4677,45 @@ async fn update_section_story_context(
     app: &AppHandle,
     client: &Client,
     endpoint: &str,
+    provider: &str,
+    router_api_key: &str,
     job: &mut Job,
+    extraction_prompt: &str,
+    curation_prompt: &str,
     section_index: usize,
     window: &tauri::Window,
     max_retries: usize,
 ) -> Result<usize, String> {
     let title = job.sections[section_index].title.clone();
-    let candidates =
-        generate_section_context(client, endpoint, job, section_index, window, max_retries).await?;
+    let candidates = generate_section_context(
+        client,
+        endpoint,
+        provider,
+        router_api_key,
+        job,
+        extraction_prompt,
+        section_index,
+        window,
+        max_retries,
+    )
+    .await?;
     let mut combined = candidates
         .into_iter()
         .map(|suggestion| suggestion.fact)
         .collect::<Vec<_>>();
     combined.extend(job.context.clone());
-    let curated =
-        curate_story_context(client, endpoint, job, &combined, window, max_retries).await?;
+    let curated = curate_story_context(
+        client,
+        endpoint,
+        provider,
+        router_api_key,
+        job,
+        curation_prompt,
+        &combined,
+        window,
+        max_retries,
+    )
+    .await?;
     let before = job.context.len();
     let retained = if curated.is_empty() && !job.context.is_empty() {
         job.context
@@ -4305,82 +4746,47 @@ async fn update_section_story_context(
     async fn curate_story_context(
         client: &Client,
         endpoint: &str,
+        provider: &str,
+        router_api_key: &str,
         job: &Job,
+        curation_prompt: &str,
         candidates: &[String],
         window: &tauri::Window,
         max_retries: usize,
     ) -> Result<Vec<ContextSuggestion>, String> {
         let context_limit = job.context_limit.clamp(1, MAX_CONTEXT_FACTS);
-        let request = ChatRequest {
-            model: &job.model,
-            messages: vec![
-                ChatMessage {
-                    role: "system",
-                    content: format!(
-                        "You maintain a compact continuity bible for a long novel. Review the existing facts and the newly observed facts below. Keep only non-explicit durable facts likely to matter later: important relationships, identities, family or faction membership, titles, stable traits, rules of the world, unresolved long-term plot facts, and terminology that affects continuity. Ignore sexual, erotic, pornographic, or other R19 material completely; never quote, describe, or analyze it. Remove one-off actions, temporary emotions, scene details, redundant wording, and facts that are not useful later. Resolve duplicates and contradictions by keeping the most recently supported wording. Return at most {context_limit} concise facts, each no longer than 500 characters, as only a JSON array shaped like [{{\"fact\":\"...\"}}]. Do not add facts that are not present in the input."
-                    ),
-                },
-                ChatMessage {
-                    role: "user",
-                    content: format!(
-                        "EXISTING AND NEW FACTS:\n{}",
-                        context_lines(candidates)
-                    ),
-                },
-            ],
-            stream: false,
-            think: false,
-            options: ChatOptions { temperature: 0.0 },
-        };
-        let request_url = endpoint_url(endpoint, "api/chat").map_err(|error| error.to_string())?;
-        let mut last_failure = None;
-        for attempt in 0..=max_retries {
-            match client.post(request_url.clone()).json(&request).send().await {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<ChatResponse>().await {
-                        Ok(response) => {
-                            match parse_context_suggestions(&response.message.content) {
-                                Ok(suggestions) => return Ok(suggestions),
-                                Err(error) => {
-                                    let _ = error;
-                                    return Ok(job
-                                        .context
-                                        .iter()
-                                        .cloned()
-                                        .map(|fact| ContextSuggestion { fact })
-                                        .collect());
-                                }
-                            }
-                        }
-                        Err(error) => {
-                            last_failure = Some(format!("reading curated story context: {error}"));
-                        }
-                    }
-                }
-                Ok(response) => {
-                    let status = response.status();
-                    let reason =
-                        format!("Ollama returned HTTP {status} while curating story context.");
-                    if !should_retry_http_status(status) {
-                        return Err(reason);
-                    }
-                    last_failure = Some(reason);
-                }
-                Err(error) => {
-                    last_failure = Some(format!(
-                        "Ollama request failed while curating story context: {error}"
-                    ));
-                }
-            }
-            if attempt == max_retries {
-                break;
-            }
-            let reason = last_failure
-                .as_deref()
-                .unwrap_or("Story context curation failed.");
-            report_translation_retry(window, job, attempt + 1, reason).await?;
-        }
-        Err(last_failure.unwrap_or_else(|| "Story context curation failed.".into()))
+        let messages = vec![
+            ChatMessage {
+                role: "system",
+                content: curation_prompt.replace("{context_limit}", &context_limit.to_string()),
+            },
+            ChatMessage {
+                role: "user",
+                content: format!("EXISTING AND NEW FACTS:\n{}", context_lines(candidates)),
+            },
+        ];
+        let response = send_chat_completion(
+            client,
+            &job.model,
+            messages,
+            Some(endpoint),
+            provider,
+            router_api_key,
+            None,
+            max_retries,
+            window,
+            job,
+            0,
+            0,
+        )
+        .await?;
+        Ok(parse_context_suggestions(&response).unwrap_or_else(|_| {
+            job.context
+                .iter()
+                .cloned()
+                .map(|fact| ContextSuggestion { fact })
+                .collect()
+        }))
     }
     save_job(app, job).map_err(|error| error.to_string())?;
     if let Some(book_id) = &job.library_id {
@@ -4443,11 +4849,16 @@ async fn update_or_record_section_context(
     max_retries: usize,
 ) -> Result<(), String> {
     let section_started = Instant::now();
+    let settings = load_settings(app).map_err(|error| error.to_string())?;
     let update_result = update_section_story_context(
         app,
         client,
         endpoint,
+        &settings.provider,
+        &settings.router_api_key,
         job,
+        &settings.context_extraction_prompt,
+        &settings.context_curation_prompt,
         section_index,
         window,
         max_retries,
@@ -4468,12 +4879,104 @@ async fn send_chat_completion(
     model: &str,
     messages: Vec<ChatMessage<'_>>,
     ollama_endpoint: Option<&str>,
+    provider: &str,
+    router_api_key: &str,
+    instruction_text: Option<&str>,
     max_retries: usize,
     window: &tauri::Window,
     job: &Job,
     section_index: usize,
-    chunk_index: usize,
+    _chunk_index: usize,
 ) -> Result<String, String> {
+    let mut messages = messages;
+    if let Some(instructions) = instruction_text.filter(|text| !text.trim().is_empty()) {
+        messages.insert(
+            0,
+            ChatMessage {
+                role: "system",
+                content: instructions.to_string(),
+            },
+        );
+    }
+    if provider == "router" {
+        let endpoint = ollama_endpoint.ok_or("AI router endpoint not configured")?;
+        let request_url =
+            endpoint_url(endpoint, "chat/completions").map_err(|error| error.to_string())?;
+        let request = OpenAiChatRequest {
+            model,
+            messages,
+            temperature: 0.2,
+        };
+        let mut last_failure = None;
+        for attempt in 0..=max_retries {
+            let response = client
+                .post(request_url.clone())
+                .bearer_auth(router_api_key)
+                .json(&request)
+                .send()
+                .await;
+            match response {
+                Ok(response) if response.status().is_success() => {
+                    match response.json::<OpenAiChatResponse>().await {
+                        Ok(response)
+                            if response.choices.first().is_some_and(|choice| {
+                                !choice.message.content.trim().is_empty()
+                            }) =>
+                        {
+                            let content = response.choices[0].message.content.trim();
+                            if inappropriate_content_warning(content) {
+                                last_failure = Some(
+                                    "The model returned an inappropriate-content warning instead of a translation. Retrying because of that warning."
+                                        .into(),
+                                );
+                            } else {
+                                return Ok(content.to_string());
+                            }
+                        }
+                        Ok(_) => {
+                            last_failure = Some(format!(
+                                "AI router returned an empty response for section {}.",
+                                section_index + 1
+                            ))
+                        }
+                        Err(error) => {
+                            last_failure = Some(format!(
+                                "reading AI router response for section {}: {error}",
+                                section_index + 1
+                            ))
+                        }
+                    }
+                }
+                Ok(response) => {
+                    let status = response.status();
+                    let detail = response.text().await.unwrap_or_default();
+                    let reason = format!(
+                        "AI router returned HTTP {} while processing section {}: {}",
+                        status,
+                        section_index + 1,
+                        detail.trim()
+                    );
+                    if !should_retry_http_status(status) {
+                        return Err(reason);
+                    }
+                    last_failure = Some(reason);
+                }
+                Err(error) => {
+                    last_failure = Some(format!(
+                        "AI router request failed for section {}: {error}",
+                        section_index + 1
+                    ))
+                }
+            }
+            if attempt == max_retries {
+                break;
+            }
+            if let Some(failure) = &last_failure {
+                report_translation_retry(window, job, attempt + 1, failure).await?;
+            }
+        }
+        return Err(last_failure.unwrap_or_else(|| "AI router translation failed.".into()));
+    }
     let request = ChatRequest {
         model,
         messages,
@@ -4492,27 +4995,47 @@ async fn send_chat_completion(
             Ok(response) if response.status().is_success() => {
                 match response.json::<ChatResponse>().await {
                     Ok(response) if !response.message.content.trim().is_empty() => {
-                        return Ok(response.message.content.trim().to_string());
+                        let content = response.message.content.trim();
+                        if inappropriate_content_warning(content) {
+                            last_failure = Some(
+                                "The model returned an inappropriate-content warning instead of a translation. Retrying because of that warning."
+                                    .into(),
+                            );
+                        } else {
+                            return Ok(content.to_string());
+                        }
                     }
                     Ok(response) => {
                         last_failure = Some(empty_translation_reason(&response, section_index));
                     }
                     Err(error) => {
-                        last_failure = Some(format!("reading translation for section {}: {}", section_index + 1, error));
+                        last_failure = Some(format!(
+                            "reading translation for section {}: {}",
+                            section_index + 1,
+                            error
+                        ));
                     }
                 }
             }
             Ok(response) => {
                 let status = response.status();
                 let _text = response.text().await.unwrap_or_default();
-                let reason = format!("Ollama returned HTTP {} while translating section {}.", status, section_index + 1);
+                let reason = format!(
+                    "Ollama returned HTTP {} while translating section {}.",
+                    status,
+                    section_index + 1
+                );
                 if !should_retry_http_status(status) {
                     return Err(reason);
                 }
                 last_failure = Some(reason.clone());
             }
             Err(error) => {
-                let reason = format!("Ollama request failed for section {}: {}", section_index + 1, error);
+                let reason = format!(
+                    "Ollama request failed for section {}: {}",
+                    section_index + 1,
+                    error
+                );
                 last_failure = Some(reason.clone());
             }
         }
@@ -4548,14 +5071,39 @@ async fn translate_job(
         return Err("Select a model before translating.".into());
     }
 
-    let settings = load_settings(&app)
-        .map_err(|error| format!("Loading settings: {error}"))?;
+    let settings = load_settings(&app).map_err(|error| format!("Loading settings: {error}"))?;
+    let instruction_text = if settings.instruction_file.trim().is_empty() {
+        None
+    } else {
+        Some(
+            fs::read_to_string(&settings.instruction_file)
+                .map_err(|error| format!("Reading instruction file: {error}"))?,
+        )
+    };
     let auto_retry = settings.auto_retry;
     let max_retries = if auto_retry {
         MAX_TRANSLATION_RETRIES
     } else {
         0
     };
+    if !job.glossary_preflight_complete {
+        window
+            .emit(
+                "translation-progress",
+                Progress {
+                    job_id: job.id.clone(),
+                    completed: job.completed_chunks,
+                    total: job.total_chunks,
+                    estimated_remaining_seconds: None,
+                    message: "Building a terminology glossary before translation…".into(),
+                },
+            )
+            .map_err(|error| format!("reporting glossary progress: {error}"))?;
+        job.glossary =
+            generate_preflight_glossary(&app, &job, &client, &window, max_retries).await?;
+        job.glossary_preflight_complete = true;
+        save_job(&app, &job).map_err(|error| error.to_string())?;
+    }
     let glossary = job
         .glossary
         .clone()
@@ -4637,6 +5185,9 @@ async fn translate_job(
                 &job.model,
                 messages,
                 Some(&endpoint),
+                &settings.provider,
+                &settings.router_api_key,
+                instruction_text.as_deref(),
                 max_retries,
                 &window,
                 &job,
@@ -4818,47 +5369,90 @@ fn export_job(app: AppHandle, job_id: String, output_path: String) -> Result<(),
 /// Snapshot a completed library translation into the reader's ignored staging folder.
 /// Never write a plaintext book into reader/public/ or a Pages artifact.
 #[tauri::command]
-fn export_library_to_reader(app: AppHandle, book_id: String, output_dir: String) -> Result<String, String> {
+fn export_library_to_reader(
+    app: AppHandle,
+    book_id: String,
+    output_dir: String,
+) -> Result<String, String> {
     let book = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
     if book.status != "Completed" {
         return Err("Finish translation before exporting to the reader.".into());
     }
-    let job_id = book.job_id.as_deref().ok_or("No translation is attached to this novel.")?;
+    let job_id = book
+        .job_id
+        .as_deref()
+        .ok_or("No translation is attached to this novel.")?;
     let job = load_job(&app, job_id).map_err(|error| error.to_string())?;
     if matches!(job.queue_status.as_deref(), Some("Translating" | "Queued")) {
         return Err("Wait until translation finishes before exporting this novel.".into());
     }
-    if job.sections.is_empty() || job.sections.iter().any(|section| section.translated.is_none()) {
+    if job.sections.is_empty()
+        || job
+            .sections
+            .iter()
+            .any(|section| section.translated.is_none())
+    {
         return Err("All chapters must be translated before exporting.".into());
     }
     let directory = Path::new(&output_dir);
     // Prevent accidental plaintext publication, even if a caller bypasses the UI.
     if directory.file_name().and_then(|name| name.to_str()) != Some("books-private")
-        || directory.parent().and_then(|parent| parent.file_name()).and_then(|name| name.to_str()) != Some("reader") {
+        || directory
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            != Some("reader")
+    {
         return Err("Select the reader/books-private directory, not a public directory.".into());
     }
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let stem = book.id.clone();
     let target = directory.join(format!("{stem}.epub"));
     let temporary = directory.join(format!("{stem}.{}.tmp", Uuid::new_v4()));
-    let assets = jobs_dir(&app).map_err(|error| error.to_string())?.join(job_id).join("assets");
-    let fallback = library_dir(&app).map_err(|error| error.to_string())?.join(&book.id).join("illustrations");
-    let cover = book.cover_image.as_ref().map(|name| library_dir(&app).map(|dir| dir.join(&book.id).join(name)))
-        .transpose().map_err(|error| error.to_string())?;
-    if let Err(error) = write_epub(&job, if assets.exists() { &assets } else { &fallback }, Some(&fallback), cover.as_deref(), &temporary) {
+    let assets = jobs_dir(&app)
+        .map_err(|error| error.to_string())?
+        .join(job_id)
+        .join("assets");
+    let fallback = library_dir(&app)
+        .map_err(|error| error.to_string())?
+        .join(&book.id)
+        .join("illustrations");
+    let cover = book
+        .cover_image
+        .as_ref()
+        .map(|name| library_dir(&app).map(|dir| dir.join(&book.id).join(name)))
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = write_epub(
+        &job,
+        if assets.exists() { &assets } else { &fallback },
+        Some(&fallback),
+        cover.as_deref(),
+        &temporary,
+    ) {
         let _ = fs::remove_file(&temporary);
         return Err(error.to_string());
     }
-    if target.exists() { fs::remove_file(&target).map_err(|error| error.to_string())?; }
+    if target.exists() {
+        fs::remove_file(&target).map_err(|error| error.to_string())?;
+    }
     fs::rename(&temporary, &target).map_err(|error| error.to_string())?;
     let cover_file = if let Some(source) = cover.as_ref().filter(|path| path.is_file()) {
-        let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+        let extension = source
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
         if matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
             let name = format!("{stem}.cover.{extension}");
             fs::copy(source, directory.join(&name)).map_err(|error| error.to_string())?;
             Some(name)
-        } else { None }
-    } else { None };
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let metadata = serde_json::json!({
         "title": book.title, "original_title": book.original_title, "author": book.author,
         "synopsis": book.synopsis, "tags": book.tags, "genres": book.genres,
@@ -4866,8 +5460,11 @@ fn export_library_to_reader(app: AppHandle, book_id: String, output_dir: String)
         "source_language": book.source_language, "publication_status": book.publication_status,
         "cover_file": cover_file,
     });
-    fs::write(directory.join(format!("{stem}.metadata.json")), serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?)
-        .map_err(|error| error.to_string())?;
+    fs::write(
+        directory.join(format!("{stem}.metadata.json")),
+        serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
     Ok(target.to_string_lossy().into_owned())
 }
 
@@ -4895,6 +5492,18 @@ async fn retranslate_job_sections(
     interactive: bool,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    let overrides = load_job_overrides(&app, &job_id).map_err(|error| error.to_string())?;
+    // Title edits live in the override file so retranslation cannot replace them.
+    apply_job_titles(&mut job, &overrides);
+    let settings = load_settings(&app).map_err(|error| error.to_string())?;
+    let instruction_text = if settings.instruction_file.trim().is_empty() {
+        None
+    } else {
+        Some(
+            fs::read_to_string(&settings.instruction_file)
+                .map_err(|error| format!("Reading instruction file: {error}"))?,
+        )
+    };
     if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
         return Err("Wait until the novel is no longer in the translation queue.".into());
     }
@@ -4918,7 +5527,7 @@ async fn retranslate_job_sections(
     if selected_model.is_empty() {
         return Err("Select a model before retranslating.".into());
     }
-    
+
     let _app_settings = load_settings(&app).map_err(|error| error.to_string())?;
 
     for section_index in section_indices {
@@ -4985,6 +5594,9 @@ async fn retranslate_job_sections(
                 &selected_model,
                 messages,
                 Some(&endpoint),
+                &settings.provider,
+                &settings.router_api_key,
+                instruction_text.as_deref(),
                 max_retries,
                 &window,
                 &job,
@@ -5577,6 +6189,21 @@ mod tests {
     }
 
     #[test]
+    fn title_overrides_survive_retranslation_setup() {
+        let mut job = serde_json::from_value::<Job>(serde_json::json!({
+            "id":"test","title":"Original","source_language":"Japanese","output_format":"epub",
+            "genre":"","tones":[],"instructions":"","model":"model","sections":[{"title":"Original chapter","text":"text","translated":null,"translated_chunks":[],"images":[]}],
+            "completed_sections":0,"section_count":1,"completed_chunks":0,"total_chunks":1
+        })).unwrap();
+        let mut overrides = JobOverrides::default();
+        overrides.titles.insert(0, "Edited chapter".into());
+        overrides.novel_title = Some("Edited novel".into());
+        apply_job_titles(&mut job, &overrides);
+        assert_eq!(job.title, "Edited novel");
+        assert_eq!(job.sections[0].title, "Edited chapter");
+    }
+
+    #[test]
     fn novel_updates_url_and_metadata_are_validated() {
         assert!(
             validate_novel_updates_url("https://www.novelupdates.com/series/example-novel/")
@@ -5857,6 +6484,7 @@ mod tests {
             queue_order: 0,
             translation_prompt: String::new(),
             glossary: Vec::new(),
+            glossary_preflight_complete: false,
             context: vec!["Fact".into()],
             context_update_failures: Vec::new(),
             context_limit: 100,
@@ -5880,6 +6508,15 @@ mod tests {
         assert_eq!(settings.translation_prompt, default_translation_prompt());
         assert!(!settings.dark_mode);
         assert!(settings.auto_retry);
+        assert_eq!(settings.glossary_prompt, default_glossary_prompt());
+        assert_eq!(
+            settings.context_extraction_prompt,
+            default_context_extraction_prompt()
+        );
+        assert_eq!(
+            settings.context_curation_prompt,
+            default_context_curation_prompt()
+        );
 
         let dark_settings: AppSettings = serde_json::from_str(
             r#"{"ollama_endpoint":"http://localhost:11434","default_source_language":"Japanese","default_output_format":"epub","default_model":"","dark_mode":true}"#,
@@ -5899,6 +6536,34 @@ mod tests {
         ));
         assert!(!should_retry_http_status(reqwest::StatusCode::NOT_FOUND));
         assert!(!should_retry_http_status(reqwest::StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn inappropriate_content_warnings_are_retryable_model_outputs() {
+        assert!(inappropriate_content_warning(
+            "This may contain inappropriate content and cannot be translated."
+        ));
+        assert!(inappropriate_content_warning("内容可能不适合。"));
+        assert!(!inappropriate_content_warning(
+            "The translated chapter begins here."
+        ));
+    }
+
+    #[test]
+    fn glossary_audit_accepts_wrapped_json() {
+        let result = parse_glossary_audit(
+            "```json\n{\"entries\":[{\"id\":\"one\",\"keep\":false,\"reason\":\"ordinary word\"}]}\n```",
+        )
+        .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "one");
+        assert!(!result[0].keep);
+    }
+
+    #[test]
+    fn glossary_audit_repair_prompt_is_safe_to_retry() {
+        assert!(parse_glossary_audit("not json").is_err());
+        assert!(parse_glossary_audit("[{\"id\":\"x\",\"keep\":true,\"reason\":\"name\"}]").is_ok());
     }
 
     #[test]
@@ -6027,6 +6692,7 @@ mod tests {
             queue_order: 0,
             translation_prompt: default_translation_prompt(),
             glossary: Vec::new(),
+            glossary_preflight_complete: false,
             context: Vec::new(),
             context_update_failures: Vec::new(),
             context_limit: default_context_limit(),
@@ -6084,7 +6750,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            list_ollama_models,
+            list_models,
             get_app_settings,
             update_app_settings,
             create_job,
@@ -6111,6 +6777,7 @@ fn main() {
             delete_library_book,
             update_library_source_language,
             generate_library_glossary,
+            audit_library_glossary,
             generate_job_glossary_suggestions,
             save_library_glossary_text,
             save_library_glossary_entry,
@@ -6123,6 +6790,8 @@ fn main() {
             write_text_file,
             save_glossary_entry,
             delete_glossary_entry,
+            delete_glossary_entries,
+            delete_library_glossary_entries,
             list_jobs,
             delete_saved_job,
             get_job,
