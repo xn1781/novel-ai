@@ -194,6 +194,9 @@ textarea { resize: vertical; min-height: 73px; line-height: 1.5; }
 .book-retranslate select, .book-retranslate input[type="text"], .book-retranslate textarea { width: 100%; box-sizing: border-box; }
 .book-retranslate-controls > * { margin-top: 7px; }
 .book-retranslate-controls > select:first-child { margin-top: 0; }
+.book-retranslate-range { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
+.book-retranslate-range input[type="number"] { width: 72px; min-width: 0; margin: 0; }
+.book-retranslate-range .button { padding: 8px 10px; }
 .retranslate-tone-options { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
 .book-retranslate-preview { max-height: 220px; overflow: auto; margin: 10px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); color: var(--ink); font: 10px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .book-retranslate-source { min-height: 130px; margin-top: 10px; font-family: Consolas, monospace; font-size: 10px; }

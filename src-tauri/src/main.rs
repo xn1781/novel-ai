@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::{Cursor, Read, Write},
     path::{Path, PathBuf},
@@ -20,6 +20,36 @@ use uuid::Uuid;
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 static INTERACTIVE_ANSWERS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+static ACTIVE_RETRANSLATIONS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static STOP_RETRANSLATIONS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+struct RetranslationGuard(String);
+
+impl Drop for RetranslationGuard {
+    fn drop(&mut self) {
+        if let Some(active) = ACTIVE_RETRANSLATIONS.get() {
+            if let Ok(mut active) = active.lock() { active.remove(&self.0); }
+        }
+        if let Some(stops) = STOP_RETRANSLATIONS.get() {
+            if let Ok(mut stops) = stops.lock() { stops.remove(&self.0); }
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct RetranslationRun {
+    indices: Vec<usize>,
+    next: usize,
+    #[serde(default)]
+    chunks: Vec<String>,
+    instructions: String,
+    genre: String,
+    tones: Vec<String>,
+    model: String,
+    endpoint: String,
+    interactive: bool,
+    status: String,
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Section {
@@ -54,6 +84,8 @@ struct Job {
     instructions: String,
     model: String,
     sections: Vec<Section>,
+    #[serde(default)]
+    retranslation: Option<RetranslationRun>,
     completed_sections: usize,
     section_count: usize,
     #[serde(default)]
@@ -1579,6 +1611,7 @@ fn create_job_from_paths(
         instructions,
         model,
         sections,
+        retranslation: None,
         completed_sections: 0,
         section_count: count,
         completed_chunks: 0,
@@ -1976,6 +2009,9 @@ fn replace_library_book(
     source_language: String,
 ) -> Result<LibraryBook, String> {
     let existing = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
+    if existing.job_id.as_deref().is_some_and(retranslation_active) {
+        return Err("Stop retranslation before replacing source files.".into());
+    }
     if matches!(existing.status.as_str(), "Queued" | "Translating") {
         return Err(
             "Remove the novel from the active queue before replacing its source files.".into(),
@@ -2051,6 +2087,9 @@ fn append_sources(
     sources: Vec<(String, Vec<u8>)>,
 ) -> Result<LibraryBook, String> {
     let mut book = load_library_book(app, book_id).map_err(|error| error.to_string())?;
+    if book.job_id.as_deref().is_some_and(retranslation_active) {
+        return Err("Stop retranslation before adding chapters.".into());
+    }
     let mut job = book
         .job_id
         .as_deref()
@@ -3954,6 +3993,7 @@ fn delete_saved_job(app: AppHandle, job_id: String) -> Result<(), String> {
 fn delete_library_book(app: AppHandle, book_id: String) -> Result<(), String> {
     let book = load_library_book(&app, &book_id).map_err(|error| error.to_string())?;
     if let Some(job_id) = &book.job_id {
+        if retranslation_active(job_id) { return Err("Stop retranslation before removing this novel.".into()); }
         let job_file = job_path(&app, job_id).map_err(|error| error.to_string())?;
         if job_file.exists() {
             let job = load_job(&app, job_id).map_err(|error| error.to_string())?;
@@ -4077,6 +4117,10 @@ fn enqueue_library_book(
     };
     if let Some(existing_id) = &book.job_id {
         if let Ok(job) = load_job(&app, existing_id) {
+            if ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+                .is_some_and(|active| active.contains(existing_id)) {
+                return Err("Stop retranslation before queueing this novel.".into());
+            }
             if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
                 return Ok(job);
             }
@@ -4203,7 +4247,15 @@ fn restart_library_translation(app: AppHandle, book_id: String) -> Result<Job, S
         .job_id
         .as_deref()
         .ok_or_else(|| "This novel has not been queued yet.".to_string())?;
+    if ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+        .is_some_and(|active| active.contains(job_id)) {
+        return Err("Stop retranslation before restarting this novel.".into());
+    }
     let mut job = load_job(&app, job_id).map_err(|error| error.to_string())?;
+    if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
+        return Err("Wait until the novel leaves the translation queue before restarting.".into());
+    }
+    job.retranslation = None;
     for section in &mut job.sections {
         section.translated = None;
         section.translated_chunks.clear();
@@ -4338,7 +4390,14 @@ struct JobSummary {
 
 #[tauri::command]
 fn get_job(app: AppHandle, job_id: String) -> Result<Job, String> {
-    load_job(&app, &job_id).map_err(|error| error.to_string())
+    let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if let Some(run) = job.retranslation.as_mut() {
+        if run.status == "Running" && !ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+            .is_some_and(|active| active.contains(&job_id)) {
+            run.status = "Interrupted".into();
+        }
+    }
+    Ok(job)
 }
 
 #[tauri::command]
@@ -4394,6 +4453,7 @@ fn update_job_section_title(
     title: String,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if retranslation_active(&job_id) { return Err("Stop retranslation before editing chapter titles.".into()); }
     let title = title.trim();
     if title.is_empty() {
         return Err("Section title cannot be empty.".into());
@@ -4422,6 +4482,7 @@ fn update_job_section_titles(
     titles: Vec<String>,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if retranslation_active(&job_id) { return Err("Stop retranslation before editing chapter titles.".into()); }
     if titles.len() != job.sections.len() {
         return Err(format!(
             "Expected one title for each of the {} sections.",
@@ -4460,6 +4521,7 @@ fn update_job_section_text(
     text: String,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if retranslation_active(&job_id) { return Err("Stop retranslation before editing chapter content.".into()); }
     if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
         return Err("Wait until the novel is no longer in the translation queue.".into());
     }
@@ -4499,6 +4561,7 @@ fn update_job_section_translation(
     translated: String,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if retranslation_active(&job_id) { return Err("Stop retranslation before editing chapter translations.".into()); }
     if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
         return Err("Wait until the novel is no longer in the translation queue.".into());
     }
@@ -5067,6 +5130,10 @@ async fn translate_job(
         .build()
         .map_err(|error| error.to_string())?;
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+        .is_some_and(|active| active.contains(&job_id)) {
+        return Err("Stop retranslation before translating this novel.".into());
+    }
     if job.model.trim().is_empty() {
         return Err("Select a model before translating.".into());
     }
@@ -5478,6 +5545,73 @@ fn answer_interactive_translation(question_id: String, answer: String) -> Result
     Ok(())
 }
 
+fn retranslation_active(id: &str) -> bool {
+    ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+        .is_some_and(|active| active.contains(id))
+}
+
+fn retranslation_should_stop(id: &str) -> bool {
+    STOP_RETRANSLATIONS.get().and_then(|stops| stops.lock().ok())
+        .is_some_and(|stops| stops.contains(id))
+}
+
+fn source_script_count(text: &str, language: &str) -> usize {
+    text.chars().filter(|character| match language {
+        "Korean" => ('\u{ac00}'..='\u{d7a3}').contains(character),
+        "Japanese" => ('\u{3040}'..='\u{30ff}').contains(character) || ('\u{3400}'..='\u{9fff}').contains(character),
+        _ => false,
+    }).count()
+}
+
+fn retranslation_title_source<'a>(title: &'a str, text: &'a str, language: &str) -> Option<&'a str> {
+    if source_script_count(title, language) > 0 { return Some(title); }
+    if !title.chars().any(char::is_alphabetic) || {
+        let normalized = title.to_ascii_lowercase();
+        normalized.starts_with("chapter") && normalized["chapter".len()..].trim()
+            .chars().all(|character| character.is_ascii_digit() || character == '-')
+    } {
+        let first = text.lines().map(str::trim).find(|line| !line.is_empty())?;
+        let looks_like_heading = match language {
+            "Korean" => first.starts_with('제') && first.contains('화') || first.contains("화:") || first.contains("화 "),
+            "Japanese" => first.starts_with('第') && first.contains('話'),
+            _ => false,
+        };
+        if first.chars().count() <= 100 && looks_like_heading && source_script_count(first, language) > 0 {
+            return Some(first);
+        }
+    }
+    None
+}
+
+fn translated_text_looks_untranslated(translated: &str, source: &str, language: &str) -> bool {
+    let count = source_script_count(translated, language);
+    let letters = translated.chars().filter(|character| character.is_alphabetic()).count();
+    (count >= 3 && translated.trim() == source.trim()) || (count >= 8 && count * 100 >= letters * 35)
+}
+
+#[tauri::command]
+fn stop_retranslation(app: AppHandle, job_id: String) -> Result<(), String> {
+    load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if !ACTIVE_RETRANSLATIONS.get().and_then(|active| active.lock().ok())
+        .is_some_and(|active| active.contains(&job_id)) {
+        return Err("No retranslation is running for this novel.".into());
+    }
+    STOP_RETRANSLATIONS.get_or_init(|| Mutex::new(HashSet::new()))
+        .lock().map_err(|_| "Stop state unavailable.".to_string())?.insert(job_id);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_retranslation_progress(app: AppHandle, job_id: String) -> Result<Option<RetranslationRun>, String> {
+    let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    if let Some(run) = job.retranslation.as_mut() {
+        if run.status == "Running" && !retranslation_active(&job_id) {
+            run.status = "Interrupted".into();
+        }
+    }
+    Ok(job.retranslation)
+}
+
 #[tauri::command]
 async fn retranslate_job_sections(
     app: AppHandle,
@@ -5492,6 +5626,15 @@ async fn retranslate_job_sections(
     interactive: bool,
 ) -> Result<Job, String> {
     let mut job = load_job(&app, &job_id).map_err(|error| error.to_string())?;
+    {
+        let mut active = ACTIVE_RETRANSLATIONS.get_or_init(|| Mutex::new(HashSet::new()))
+            .lock().map_err(|_| "Retranslation state unavailable.".to_string())?;
+        if !active.insert(job_id.clone()) { return Err("This novel is already retranslating.".into()); }
+    }
+    let _guard = RetranslationGuard(job_id.clone());
+    if let Some(stops) = STOP_RETRANSLATIONS.get() {
+        stops.lock().map_err(|_| "Stop state unavailable.".to_string())?.remove(&job_id);
+    }
     let overrides = load_job_overrides(&app, &job_id).map_err(|error| error.to_string())?;
     // Title edits live in the override file so retranslation cannot replace them.
     apply_job_titles(&mut job, &overrides);
@@ -5507,32 +5650,62 @@ async fn retranslate_job_sections(
     if matches!(job.queue_status.as_deref(), Some("Queued" | "Translating")) {
         return Err("Wait until the novel is no longer in the translation queue.".into());
     }
-    let mut section_indices = section_indices;
-    section_indices.sort_unstable();
-    section_indices.dedup();
-    if section_indices.is_empty() {
-        return Err("Select at least one chapter to retranslate.".into());
-    }
-    if section_indices
-        .iter()
-        .any(|index| *index >= job.sections.len())
-    {
-        return Err("One or more selected chapters no longer exist.".into());
-    }
-    let selected_model = if model.trim().is_empty() {
+    let mut indices = section_indices;
+    indices.sort_unstable();
+    indices.dedup();
+    if indices.is_empty() {
+        let run = job.retranslation.as_mut().ok_or("No saved retranslation to resume.")?;
+        if run.next >= run.indices.len() { return Err("No chapters remain to retranslate.".into()); }
+        run.status = "Running".into();
+    } else {
+        if indices.iter().any(|index| *index >= job.sections.len()) {
+            return Err("One or more selected chapters no longer exist.".into());
+        }
+        if job.retranslation.as_ref().is_some_and(|run| run.next < run.indices.len() && !run.chunks.is_empty()) {
+            return Err("Resume the unfinished chapter before starting a new selection (saved chunks would be lost).".into());
+        }
+        let selected_model = if model.trim().is_empty() {
         job.model.clone()
     } else {
         model.trim().to_string()
     };
-    if selected_model.is_empty() {
-        return Err("Select a model before retranslating.".into());
+        if selected_model.is_empty() { return Err("Select a model before retranslating.".into()); }
+        job.retranslation = Some(RetranslationRun {
+            indices, next: 0, chunks: Vec::new(), instructions, genre, tones,
+            model: selected_model, endpoint, interactive, status: "Running".into(),
+        });
     }
+    save_job(&app, &job).map_err(|error| error.to_string())?;
+    let result = run_retranslation(&app, &window, &mut job, instruction_text.as_deref()).await;
+    if let Err(error) = &result {
+        if let Some(run) = job.retranslation.as_mut() {
+            run.status = "Failed".into();
+            // Invalid model output should be translated again rather than replayed from the checkpoint.
+            if error.contains("still appears to be in the source language") { run.chunks.clear(); }
+        }
+        let _ = save_job(&app, &job);
+        return Err(error.clone());
+    }
+    Ok(job)
+}
 
-    let _app_settings = load_settings(&app).map_err(|error| error.to_string())?;
-
-    for section_index in section_indices {
+async fn run_retranslation(app: &AppHandle, window: &tauri::Window, job: &mut Job, instruction_text: Option<&str>) -> Result<(), String> {
+    while job.retranslation.as_ref().is_some_and(|run| run.next < run.indices.len()) {
+        if retranslation_should_stop(&job.id) {
+            job.retranslation.as_mut().unwrap().status = "Paused".into();
+            save_job(app, job).map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        let run = job.retranslation.as_ref().unwrap().clone();
+        let section_index = run.indices[run.next];
+        let instructions = run.instructions;
+        let genre = run.genre;
+        let tones = run.tones;
+        let selected_model = run.model;
+        let endpoint = run.endpoint;
+        let interactive = run.interactive;
         let source_text = job.sections[section_index].text.clone();
-        let settings = load_settings(&app).map_err(|error| error.to_string())?;
+        let settings = load_settings(app).map_err(|error| error.to_string())?;
         let max_retries = if settings.auto_retry {
             MAX_TRANSLATION_RETRIES
         } else {
@@ -5577,8 +5750,16 @@ async fn retranslate_job_sections(
             .build()
             .map_err(|error| error.to_string())?;
         let source_chunks = split_translation_chunks(&source_text, 3000);
-        let mut translated_chunks = Vec::with_capacity(source_chunks.len());
-        for (chunk_index, source_chunk) in source_chunks.iter().enumerate() {
+        if job.retranslation.as_ref().unwrap().chunks.len() > source_chunks.len() {
+            return Err("Saved retranslation chunks do not match the chapter.".into());
+        }
+        let start_chunk = job.retranslation.as_ref().unwrap().chunks.len();
+        for (chunk_index, source_chunk) in source_chunks.iter().enumerate().skip(start_chunk) {
+            if retranslation_should_stop(&job.id) {
+                job.retranslation.as_mut().unwrap().status = "Paused".into();
+                save_job(app, job).map_err(|error| error.to_string())?;
+                return Ok(());
+            }
             let messages = vec![
                 ChatMessage {
                     role: "system",
@@ -5598,8 +5779,8 @@ async fn retranslate_job_sections(
                 &settings.router_api_key,
                 instruction_text.as_deref(),
                 max_retries,
-                &window,
-                &job,
+                window,
+                job,
                 section_index,
                 chunk_index,
             )
@@ -5638,9 +5819,46 @@ async fn retranslate_job_sections(
                     tokio::time::sleep(Duration::from_millis(250)).await;
                 }
             }
-            translated_chunks.push(translated_content);
+            job.retranslation.as_mut().unwrap().chunks.push(translated_content);
+            save_job(app, job).map_err(|error| error.to_string())?;
+            window.emit("retranslation-progress", serde_json::json!({
+                "job_id": job.id, "completed": run.next, "total": run.indices.len(),
+                "chapter": section_index + 1, "chunk": chunk_index + 1, "chunks": source_chunks.len(),
+                "status": "Running"
+            })).map_err(|error| error.to_string())?;
         }
+        let translated_chunks = job.retranslation.as_ref().unwrap().chunks.clone();
         let translated = translated_with_source_breaks(&source_chunks, &translated_chunks);
+        if translated.trim().is_empty() || translated_text_looks_untranslated(&translated, &source_text, &job.source_language) {
+            return Err(format!("Chapter {} still appears to be in the source language. Original translation kept; choose a different model or instructions to retry.", section_index + 1));
+        }
+        if retranslation_should_stop(&job.id) {
+            job.retranslation.as_mut().unwrap().status = "Paused".into();
+            save_job(app, job).map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        let current_title = job.sections[section_index].title.clone();
+        let title_source = retranslation_title_source(&current_title, &source_text, &job.source_language);
+        let new_title = if let Some(title_source) = title_source {
+            let messages = vec![
+                ChatMessage { role: "system", content: format!("Translate this {language} chapter title into concise natural English. Keep the chapter number. Return only the translated title, no quotes or commentary.", language = job.source_language) },
+                ChatMessage { role: "user", content: title_source.to_string() },
+            ];
+            let candidate = send_chat_completion(&client, &selected_model, messages, Some(&endpoint),
+                &settings.provider, &settings.router_api_key, instruction_text, max_retries,
+                window, job, section_index, 0).await?;
+            let candidate = candidate.trim().trim_matches(['"', '\'']).trim();
+            if candidate.is_empty() || candidate.chars().count() > 160 || source_script_count(candidate, &job.source_language) > 0 {
+                return Err(format!("Chapter {} title was not translated to English. Saved chunks are available for resume.", section_index + 1));
+            }
+            let title = if source_script_count(&current_title, &job.source_language) == 0 && current_title.to_ascii_lowercase().starts_with("chapter") {
+                let normalized = candidate.to_ascii_lowercase();
+                if normalized.starts_with(&current_title.to_ascii_lowercase()) { candidate.to_string() }
+                else { format!("{current_title} — {candidate}") }
+            } else { candidate.to_string() };
+            if title.chars().count() > 160 { return Err(format!("Chapter {} translated title is too long.", section_index + 1)); }
+            Some(title)
+        } else { None };
         let section = job
             .sections
             .get_mut(section_index)
@@ -5648,9 +5866,24 @@ async fn retranslate_job_sections(
         section.translated_chunks = translated_chunks;
         section.translated = Some(translated);
         section.context_updated = false;
-        save_job(&app, &job).map_err(|error| error.to_string())?;
+        if let Some(title) = new_title {
+            section.title = title.clone();
+            let mut overrides = load_job_overrides(app, &job.id).map_err(|error| error.to_string())?;
+            overrides.titles.insert(section_index, title);
+            save_job_overrides(app, &job.id, &overrides).map_err(|error| error.to_string())?;
+        }
+        let progress = job.retranslation.as_mut().unwrap();
+        progress.next += 1;
+        progress.chunks.clear();
+        if progress.next == progress.indices.len() { progress.status = "Completed".into(); }
+        let (completed, total, status) = (progress.next, progress.indices.len(), progress.status.clone());
+        save_job(app, job).map_err(|error| error.to_string())?;
+        window.emit("retranslation-progress", serde_json::json!({
+            "job_id": job.id, "completed": completed, "total": total,
+            "chapter": section_index + 1, "status": status,
+        })).map_err(|error| error.to_string())?;
     }
-    Ok(job)
+    Ok(())
 }
 
 fn write_epub(
@@ -5914,6 +6147,26 @@ mod tests {
         assert_eq!(display_section_title("chapter001"), "Chapter 1");
         assert_eq!(display_section_title("chapter12"), "Chapter 12");
         assert_eq!(display_section_title("Prologue"), "Prologue");
+    }
+    #[test]
+    fn retranslation_checkpoints_and_source_script_counts() {
+        assert_eq!(source_script_count("안녕하세요 Hello", "Korean"), 5);
+        assert_eq!(source_script_count("これは English", "Japanese"), 3);
+        assert_eq!(source_script_count("English", "Korean"), 0);
+        assert!(translated_text_looks_untranslated("안녕하세요", "안녕하세요", "Korean"));
+        assert!(!translated_text_looks_untranslated("안녕하세요\nHello and welcome to the new story.", "안녕하세요", "Korean"));
+        assert_eq!(retranslation_title_source("Chapter 10", "제10화 시작\n본문", "Korean"), Some("제10화 시작"));
+        assert_eq!(retranslation_title_source("Chapter 10", "본문이 이어집니다. 길고 긴 문장이 계속됩니다.\n다음", "Korean"), None);
+        assert_eq!(retranslation_title_source("Prologue", "제10화 시작", "Korean"), None);
+        let run = RetranslationRun {
+            indices: vec![9, 10, 19], next: 1, chunks: vec!["Saved chunk".into()],
+            instructions: String::new(), genre: String::new(), tones: vec![],
+            model: "model".into(), endpoint: "endpoint".into(), interactive: false,
+            status: "Paused".into(),
+        };
+        let restored: RetranslationRun = serde_json::from_str(&serde_json::to_string(&run).unwrap()).unwrap();
+        assert_eq!(restored.indices[restored.next], 10);
+        assert_eq!(restored.chunks, vec!["Saved chunk"]);
     }
     use super::*;
 
@@ -6473,6 +6726,7 @@ mod tests {
             instructions: String::new(),
             model: String::new(),
             sections: vec![section(Some("English"))],
+            retranslation: None,
             completed_sections: 1,
             section_count: 1,
             completed_chunks: 1,
@@ -6681,6 +6935,7 @@ mod tests {
                     alt: "A scene".to_string(),
                 }],
             }],
+            retranslation: None,
             completed_sections: 1,
             section_count: 1,
             completed_chunks: 1,
@@ -6805,6 +7060,8 @@ fn main() {
             translate_job,
             answer_interactive_translation,
             retranslate_job_sections,
+            stop_retranslation,
+            get_retranslation_progress,
             export_job,
             export_library_to_reader
         ])

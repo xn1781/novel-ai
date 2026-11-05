@@ -2,9 +2,12 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import "./style.css";
+import { translationStatus, sourceLanguageTitle } from "./chapter-translation-status.js";
 
 const $ = (selector) => document.querySelector(selector);
 const files = [];
+const retranslationPanels = new Map();
+listen("retranslation-progress", ({ payload }) => retranslationPanels.get(payload.job_id)?.(payload));
 let activeJob = null;
 let busy = false;
 let queueRunning = false;
@@ -223,6 +226,8 @@ async function refreshLibrary() {
     const openGlossaries = new Set(
       [...list.querySelectorAll("details.book-glossary[open]")].map((section) => section.dataset.bookId),
     );
+    const openRetranslations = new Set([...list.querySelectorAll("details.book-retranslate[open]")].map((section) => section.dataset.jobId));
+    retranslationPanels.clear();
     list.replaceChildren();
     $("#library-empty").hidden = visibleBooks.length > 0;
     $("#library-empty").textContent = books.length && !visibleBooks.length
@@ -386,17 +391,40 @@ async function refreshLibrary() {
       if (book.job_id) {
         retranslateSection = document.createElement("details");
         retranslateSection.className = "book-retranslate";
+        retranslateSection.dataset.jobId = book.job_id;
+        retranslateSection.open = openRetranslations.has(book.job_id);
         const retranslateSummary = document.createElement("summary");
         retranslateSummary.textContent = "Edit and retranslate chapters";
         const retranslateHint = document.createElement("p");
         retranslateHint.className = "hint";
-        retranslateHint.textContent = "Only the selected chapter will be sent to Ollama. These options apply only to this retranslation.";
+        retranslateHint.textContent = "Select chapters below or a numbered range. Saved text containing mostly source-language characters is flagged for review. Retranslation also translates source-language chapter titles; existing English titles are preserved. Progress is saved after each chunk; stop and resume later.";
         const retranslateControls = document.createElement("div");
         retranslateControls.className = "book-retranslate-controls";
         const chapterSelect = document.createElement("select");
         chapterSelect.multiple = true;
         chapterSelect.size = 6;
-        chapterSelect.setAttribute("aria-label", `Chapter to retranslate in ${book.title}`);
+        chapterSelect.setAttribute("aria-label", `Chapters to retranslate in ${book.title}`);
+        const rangeControls = document.createElement("div");
+        rangeControls.className = "book-retranslate-range";
+        const rangeStart = document.createElement("input");
+        rangeStart.type = "number";
+        rangeStart.min = "1";
+        rangeStart.placeholder = "From";
+        rangeStart.setAttribute("aria-label", "First chapter number");
+        const rangeEnd = document.createElement("input");
+        rangeEnd.type = "number";
+        rangeEnd.min = "1";
+        rangeEnd.placeholder = "To";
+        rangeEnd.setAttribute("aria-label", "Last chapter number");
+        const selectRangeButton = document.createElement("button");
+        selectRangeButton.type = "button";
+        selectRangeButton.className = "button button-secondary";
+        selectRangeButton.textContent = "Select range";
+        const selectUntranslatedButton = document.createElement("button");
+        selectUntranslatedButton.type = "button";
+        selectUntranslatedButton.className = "button button-secondary";
+        selectUntranslatedButton.textContent = "Select missing / likely untranslated";
+        rangeControls.append(rangeStart, rangeEnd, selectRangeButton, selectUntranslatedButton);
         const chapterPreview = document.createElement("pre");
         chapterPreview.className = "book-retranslate-preview";
         chapterPreview.textContent = "Select one or more chapters to preview their current translation.";
@@ -463,13 +491,27 @@ async function refreshLibrary() {
         const retranslateButton = document.createElement("button");
         retranslateButton.type = "button";
         retranslateButton.className = "button button-secondary";
-        retranslateButton.textContent = "Retranslate selected chapter";
+        retranslateButton.textContent = "Retranslate selected chapters";
         const retranslateMessage = document.createElement("p");
         retranslateMessage.className = "book-retranslate-message";
+        const runProgress = document.createElement("p");
+        runProgress.className = "book-retranslate-message";
+        runProgress.setAttribute("role", "status");
+        const resumeButton = document.createElement("button");
+        resumeButton.type = "button";
+        resumeButton.className = "button button-secondary";
+        resumeButton.textContent = "Resume remaining chapters";
+        resumeButton.hidden = true;
+        const stopButton = document.createElement("button");
+        stopButton.type = "button";
+        stopButton.className = "button button-secondary";
+        stopButton.textContent = "Stop after current chunk";
+        stopButton.hidden = true;
         retranslateSection.append(
           retranslateSummary,
           retranslateHint,
           retranslateControls,
+          rangeControls,
           chapterPreview,
           sourceEditor,
           saveSourceButton,
@@ -478,12 +520,49 @@ async function refreshLibrary() {
           instructionArea,
           interactiveReview,
           retranslateButton,
+          resumeButton,
+          stopButton,
+          runProgress,
           retranslateMessage,
         );
+        const showRun = (run) => {
+          const active = run?.status === "Running";
+          const remaining = run && run.next < run.indices.length;
+          retranslateSummary.textContent = run && run.status !== "Completed" ? `Edit and retranslate chapters · ${run.status} ${run.next}/${run.indices.length}` : "Edit and retranslate chapters";
+          runProgress.textContent = run ? `${run.status} · ${run.next} / ${run.indices.length} chapters completed${remaining ? ` · next chapter ${run.indices[run.next] + 1}${run.chunks.length ? ` (${run.chunks.length} chunks saved)` : ""}` : ""}` : "";
+          stopButton.hidden = !active;
+          if (!active) stopButton.disabled = false;
+          resumeButton.hidden = !remaining || active;
+          retranslateButton.title = remaining && run.chunks.length ? "Resume the unfinished chapter before starting a new selection." : "Start a new retranslation selection.";
+          retranslateButton.disabled = active || Boolean(remaining && run.chunks.length);
+        };
+        let loadedJob = null;
+        retranslationPanels.set(book.job_id, async (payload) => {
+          retranslateSummary.textContent = payload.status === "Completed" ? "Edit and retranslate chapters" : `Edit and retranslate chapters · ${payload.status} ${payload.completed}/${payload.total}`;
+          runProgress.textContent = `${payload.status} · ${payload.completed} / ${payload.total} chapters completed${payload.chapter ? ` · chapter ${payload.chapter}` : ""}${payload.chunk ? ` · chunk ${payload.chunk}/${payload.chunks}` : ""}`;
+          if (payload.completed && !payload.chunk && loadedJob) {
+            try {
+              const updated = await invoke("get_job", { jobId: book.job_id });
+              loadedJob.sections = updated.sections;
+              const index = payload.chapter - 1;
+              const section = updated.sections[index];
+              const option = chapterSelect.options[index];
+              if (section && option && retranslateSection.isConnected) {
+                const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
+                option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}`;
+              }
+            } catch { /* The final request result also refreshes the chapter list. */ }
+          }
+        });
+        invoke("get_retranslation_progress", { jobId: book.job_id }).then((run) => {
+          if (retranslateSection.isConnected) showRun(run);
+        }).catch(() => {});
         retranslateSection.addEventListener("toggle", async () => {
           if (!retranslateSection.open || chapterSelect.options.length) return;
           try {
             const job = await invoke("get_job", { jobId: book.job_id });
+            loadedJob = job;
+            showRun(job.retranslation);
             genreInput.value = job.genre || "";
             const availableModels = [...$("#model").options].map((option) => ({
               value: option.value,
@@ -499,15 +578,23 @@ async function refreshLibrary() {
             toneOptions.querySelectorAll("input").forEach((input) => {
               input.checked = savedTones.has(input.value);
             });
-            job.sections.forEach((section, index) => {
-              const option = document.createElement("option");
-              option.value = index;
-              option.textContent = `${index + 1}. ${section.title}`;
-              chapterSelect.append(option);
-            });
+            const refreshChapterOptions = () => {
+              job.sections.forEach((section, index) => {
+                const option = chapterSelect.options[index] || document.createElement("option");
+                option.value = index;
+                const excerpt = section.text.replace(/\s+/g, " ").trim().slice(0, 90);
+                const title = sourceLanguageTitle(section.title, job.source_language) ? "English title not saved" : section.title;
+                option.textContent = `${index + 1}. ${title} — ${translationStatus(section, job.source_language)}${excerpt ? ` — source: ${excerpt}…` : ""}`;
+                if (!option.parentElement) chapterSelect.append(option);
+              });
+            };
+            refreshChapterOptions();
+            rangeStart.max = String(job.sections.length);
+            rangeEnd.max = String(job.sections.length);
             retranslateControls.append(chapterSelect, genreInput, modelSelect, toneOptions);
             const updatePreview = () => {
               const selected = [...chapterSelect.selectedOptions].map((option) => Number(option.value));
+              retranslateButton.textContent = `Retranslate ${selected.length || "selected"} chapter${selected.length === 1 ? "" : "s"}`;
               const canEdit = selected.length === 1;
               sourceEditor.disabled = !canEdit;
               saveSourceButton.disabled = !canEdit;
@@ -516,14 +603,30 @@ async function refreshLibrary() {
               sourceEditor.value = canEdit ? job.sections[selected[0]].text : "";
               translatedEditor.value = canEdit ? job.sections[selected[0]].translated || "" : "";
               chapterPreview.textContent = selected.length
-                ? selected.map((index) => {
+                ? selected.slice(0, 5).map((index) => {
                   const section = job.sections[index];
                   const translated = section.translated || "(No translation saved)";
-                  return `${index + 1}. ${section.title}\n\n${translated.slice(0, 1800)}${translated.length > 1800 ? "\n[…]": ""}`;
-                }).join("\n\n━━━━━━━━━━━━━━━━━━━━\n\n")
+                  return `${index + 1}. ${sourceLanguageTitle(section.title, job.source_language) ? "English title not saved" : section.title}\nSource title: ${section.title}\n\n${translated.slice(0, 1800)}${translated.length > 1800 ? "\n[…]": ""}`;
+                }).join("\n\n━━━━━━━━━━━━━━━━━━━━\n\n") + (selected.length > 5 ? `\n\n… and ${selected.length - 5} more selected chapters.` : "")
                 : "Select one or more chapters to preview their current translation.";
             };
             chapterSelect.addEventListener("change", updatePreview);
+            selectRangeButton.addEventListener("click", () => {
+              const start = Number(rangeStart.value);
+              const end = Number(rangeEnd.value);
+              if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > job.sections.length) {
+                retranslateMessage.textContent = `Enter a valid range from 1 to ${job.sections.length} (for example, 10 to 20).`;
+                return;
+              }
+              [...chapterSelect.options].forEach((option, index) => { option.selected = index + 1 >= start && index + 1 <= end; });
+              retranslateMessage.textContent = `Selected chapters ${start}–${end}.`;
+              updatePreview();
+            });
+            selectUntranslatedButton.addEventListener("click", () => {
+              [...chapterSelect.options].forEach((option, index) => { option.selected = translationStatus(job.sections[index], job.source_language) !== "Saved translation"; });
+              retranslateMessage.textContent = `${chapterSelect.selectedOptions.length} missing or likely untranslated chapters selected. Review the selection before retranslating.`;
+              updatePreview();
+            });
             updatePreview();
             saveSourceButton.addEventListener("click", async () => {
               const selected = [...chapterSelect.selectedOptions].map((option) => Number(option.value));
@@ -535,27 +638,8 @@ async function refreshLibrary() {
                   sectionIndex: selected[0],
                   text: sourceEditor.value,
                 });
-                saveTranslatedButton.addEventListener("click", async () => {
-                  const selected = [...chapterSelect.selectedOptions].map((option) => Number(option.value));
-                  if (selected.length !== 1) return;
-                  saveTranslatedButton.disabled = true;
-                  try {
-                    const updated = await invoke("update_job_section_translation", {
-                      jobId: book.job_id,
-                      sectionIndex: selected[0],
-                      translated: translatedEditor.value,
-                    });
-                    job.sections = updated.sections;
-                    retranslateMessage.textContent = "Edited translation saved. Export the novel again to use it; retranslating this chapter later will replace your edit.";
-                    updatePreview();
-                    await Promise.all([refreshLibrary(), refreshSavedJobs()]);
-                  } catch (error) {
-                    retranslateMessage.textContent = `Could not save edited translation: ${error}`;
-                  } finally {
-                    saveTranslatedButton.disabled = selected.length !== 1;
-                  }
-                });
                 job.sections = updated.sections;
+                refreshChapterOptions();
                 retranslateMessage.textContent = "Chapter content saved. Its previous translation was cleared; retranslate it to update the output.";
                 updatePreview();
                 await Promise.all([refreshLibrary(), refreshSavedJobs()]);
@@ -563,6 +647,27 @@ async function refreshLibrary() {
                 retranslateMessage.textContent = `Could not save chapter content: ${error}`;
               } finally {
                 saveSourceButton.disabled = selected.length !== 1;
+              }
+            });
+            saveTranslatedButton.addEventListener("click", async () => {
+              const selected = [...chapterSelect.selectedOptions].map((option) => Number(option.value));
+              if (selected.length !== 1) return;
+              saveTranslatedButton.disabled = true;
+              try {
+                const updated = await invoke("update_job_section_translation", {
+                  jobId: book.job_id,
+                  sectionIndex: selected[0],
+                  translated: translatedEditor.value,
+                });
+                job.sections = updated.sections;
+                refreshChapterOptions();
+                retranslateMessage.textContent = "Edited translation saved. Export the novel again to use it; retranslating this chapter later will replace your edit.";
+                updatePreview();
+                await Promise.all([refreshLibrary(), refreshSavedJobs()]);
+              } catch (error) {
+                retranslateMessage.textContent = `Could not save edited translation: ${error}`;
+              } finally {
+                saveTranslatedButton.disabled = selected.length !== 1;
               }
             });
           } catch (error) {
@@ -575,11 +680,16 @@ async function refreshLibrary() {
             retranslateMessage.textContent = "Choose at least one chapter first.";
             return;
           }
+          if (loadedJob?.retranslation && loadedJob.retranslation.next < loadedJob.retranslation.indices.length &&
+            !window.confirm("Starting a new selection discards the unfinished retranslation checkpoint (saved chapter translations remain). Continue?")) return;
           retranslateButton.disabled = true;
+          stopButton.hidden = false;
+          stopButton.disabled = false;
+          resumeButton.hidden = true;
           retranslateButton.textContent = "Retranslating…";
           retranslateMessage.textContent = `${selectedIndices.length} chapter${selectedIndices.length === 1 ? "" : "s"} will be translated sequentially.`;
           try {
-            await invoke("retranslate_job_sections", {
+            const updated = await invoke("retranslate_job_sections", {
               jobId: book.job_id,
               sectionIndices: selectedIndices,
               instructions: instructionArea.value,
@@ -589,13 +699,66 @@ async function refreshLibrary() {
               endpoint: settings.ollama_endpoint,
               interactive: interactiveCheckbox.checked,
             });
-            retranslateMessage.textContent = "Selected chapters retranslated and saved. Export the novel again to use them in the EPUB.";
+            if (loadedJob) Object.assign(loadedJob, updated);
+            [...chapterSelect.options].forEach((option, index) => {
+              const section = updated.sections[index];
+              const excerpt = section.text.replace(/\s+/g, " ").trim().slice(0, 90);
+              const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
+              option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}${excerpt ? ` — source: ${excerpt}…` : ""}`;
+            });
+            chapterSelect.dispatchEvent(new Event("change"));
+            showRun(updated.retranslation);
+            retranslateMessage.textContent = updated.retranslation?.status === "Paused" ? "Stopped. Resume when ready; saved chapters and chunks are preserved." : "Selected chapters and source-language titles translated and saved. Export again to use them.";
             await Promise.all([refreshLibrary(), refreshSavedJobs()]);
           } catch (error) {
             retranslateMessage.textContent = `Could not retranslate chapter: ${error}`;
+            try { const job = await invoke("get_job", { jobId: book.job_id }); if (loadedJob) Object.assign(loadedJob, job); showRun(job.retranslation); } catch { /* keep the original error */ }
           } finally {
-            retranslateButton.disabled = false;
-            retranslateButton.textContent = "Retranslate selected chapter";
+            stopButton.hidden = true;
+            showRun(loadedJob?.retranslation);
+            retranslateButton.textContent = `Retranslate ${selectedIndices.length || "selected"} chapter${selectedIndices.length === 1 ? "" : "s"}`;
+          }
+        });
+        stopButton.addEventListener("click", async () => {
+          stopButton.disabled = true;
+          try {
+            await invoke("stop_retranslation", { jobId: book.job_id });
+            retranslateMessage.textContent = "Stopping after the current chunk finishes…";
+          } catch (error) {
+            retranslateMessage.textContent = `Could not stop retranslation: ${error}`;
+            stopButton.disabled = false;
+          }
+        });
+        resumeButton.addEventListener("click", async () => {
+          if (loadedJob?.retranslation?.status === "Failed" &&
+            !window.confirm("Resume uses the saved model and instructions. If it returned untranslated text, change the model and start a new selection once no chunks remain. Resume anyway?")) return;
+          resumeButton.disabled = true;
+          retranslateButton.disabled = true;
+          stopButton.hidden = false;
+          stopButton.disabled = false;
+          try {
+            const updated = await invoke("retranslate_job_sections", {
+              jobId: book.job_id, sectionIndices: [], instructions: "", genre: "", tones: [],
+              model: "", endpoint: "", interactive: false,
+            });
+            if (loadedJob) Object.assign(loadedJob, updated);
+            [...chapterSelect.options].forEach((option, index) => {
+              const section = updated.sections[index];
+              const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
+              option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}`;
+            });
+            chapterSelect.dispatchEvent(new Event("change"));
+            showRun(updated.retranslation);
+            retranslateMessage.textContent = updated.retranslation?.status === "Paused" ? "Stopped; resume later." : "Retranslation complete. Export again to use the updated chapters.";
+            await Promise.all([refreshLibrary(), refreshSavedJobs()]);
+          } catch (error) {
+            retranslateMessage.textContent = `Could not resume: ${error}`;
+            try { const job = await invoke("get_job", { jobId: book.job_id }); if (loadedJob) Object.assign(loadedJob, job); showRun(job.retranslation); } catch { /* keep the original error */ }
+          } finally {
+            resumeButton.disabled = false;
+            stopButton.hidden = true;
+            stopButton.disabled = false;
+            showRun(loadedJob?.retranslation);
           }
         });
         const downloadButton = document.createElement("button");
