@@ -2,7 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import "./style.css";
-import { translationStatus, sourceLanguageTitle } from "./chapter-translation-status.js";
+import { translationStatus, sourceLanguageTitle, chapterOptionLabel } from "./chapter-translation-status.js";
 
 const $ = (selector) => document.querySelector(selector);
 const files = [];
@@ -397,7 +397,7 @@ async function refreshLibrary() {
         retranslateSummary.textContent = "Edit and retranslate chapters";
         const retranslateHint = document.createElement("p");
         retranslateHint.className = "hint";
-        retranslateHint.textContent = "Select chapters below or a numbered range. Saved text containing mostly source-language characters is flagged for review. Retranslation also translates source-language chapter titles; existing English titles are preserved. Progress is saved after each chunk; stop and resume later.";
+        retranslateHint.textContent = "Chapter labels check saved output for any Korean/Japanese characters, including names. Select flagged chapters or choose a range. You can start a new selection instead of resuming a paused run; this discards only its unfinished checkpoint, not completed chapters.";
         const retranslateControls = document.createElement("div");
         retranslateControls.className = "book-retranslate-controls";
         const chapterSelect = document.createElement("select");
@@ -423,7 +423,7 @@ async function refreshLibrary() {
         const selectUntranslatedButton = document.createElement("button");
         selectUntranslatedButton.type = "button";
         selectUntranslatedButton.className = "button button-secondary";
-        selectUntranslatedButton.textContent = "Select missing / likely untranslated";
+        selectUntranslatedButton.textContent = "Select missing / Korean-Japanese text";
         rangeControls.append(rangeStart, rangeEnd, selectRangeButton, selectUntranslatedButton);
         const chapterPreview = document.createElement("pre");
         chapterPreview.className = "book-retranslate-preview";
@@ -533,8 +533,8 @@ async function refreshLibrary() {
           stopButton.hidden = !active;
           if (!active) stopButton.disabled = false;
           resumeButton.hidden = !remaining || active;
-          retranslateButton.title = remaining && run.chunks.length ? "Resume the unfinished chapter before starting a new selection." : "Start a new retranslation selection.";
-          retranslateButton.disabled = active || Boolean(remaining && run.chunks.length);
+          retranslateButton.title = "Start a new selection. A paused run can be replaced after confirmation; completed chapters remain saved.";
+          retranslateButton.disabled = active;
         };
         let loadedJob = null;
         retranslationPanels.set(book.job_id, async (payload) => {
@@ -548,8 +548,7 @@ async function refreshLibrary() {
               const section = updated.sections[index];
               const option = chapterSelect.options[index];
               if (section && option && retranslateSection.isConnected) {
-                const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
-                option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}`;
+                option.textContent = chapterOptionLabel(section, index, updated.source_language);
               }
             } catch { /* The final request result also refreshes the chapter list. */ }
           }
@@ -582,9 +581,7 @@ async function refreshLibrary() {
               job.sections.forEach((section, index) => {
                 const option = chapterSelect.options[index] || document.createElement("option");
                 option.value = index;
-                const excerpt = section.text.replace(/\s+/g, " ").trim().slice(0, 90);
-                const title = sourceLanguageTitle(section.title, job.source_language) ? "English title not saved" : section.title;
-                option.textContent = `${index + 1}. ${title} — ${translationStatus(section, job.source_language)}${excerpt ? ` — source: ${excerpt}…` : ""}`;
+                option.textContent = chapterOptionLabel(section, index, job.source_language);
                 if (!option.parentElement) chapterSelect.append(option);
               });
             };
@@ -606,7 +603,7 @@ async function refreshLibrary() {
                 ? selected.slice(0, 5).map((index) => {
                   const section = job.sections[index];
                   const translated = section.translated || "(No translation saved)";
-                  return `${index + 1}. ${sourceLanguageTitle(section.title, job.source_language) ? "English title not saved" : section.title}\nSource title: ${section.title}\n\n${translated.slice(0, 1800)}${translated.length > 1800 ? "\n[…]": ""}`;
+                  return `${chapterOptionLabel(section, index, job.source_language)}\n\n${translated.slice(0, 1800)}${translated.length > 1800 ? "\n[…]": ""}`;
                 }).join("\n\n━━━━━━━━━━━━━━━━━━━━\n\n") + (selected.length > 5 ? `\n\n… and ${selected.length - 5} more selected chapters.` : "")
                 : "Select one or more chapters to preview their current translation.";
             };
@@ -623,8 +620,11 @@ async function refreshLibrary() {
               updatePreview();
             });
             selectUntranslatedButton.addEventListener("click", () => {
-              [...chapterSelect.options].forEach((option, index) => { option.selected = translationStatus(job.sections[index], job.source_language) !== "Saved translation"; });
-              retranslateMessage.textContent = `${chapterSelect.selectedOptions.length} missing or likely untranslated chapters selected. Review the selection before retranslating.`;
+              [...chapterSelect.options].forEach((option, index) => {
+                const section = job.sections[index];
+                option.selected = translationStatus(section) !== "No Korean/Japanese detected" || sourceLanguageTitle(section.title, job.source_language);
+              });
+              retranslateMessage.textContent = `${chapterSelect.selectedOptions.length} chapters with no saved output, Korean/Japanese saved text, or a source-language title selected.`;
               updatePreview();
             });
             updatePreview();
@@ -681,7 +681,7 @@ async function refreshLibrary() {
             return;
           }
           if (loadedJob?.retranslation && loadedJob.retranslation.next < loadedJob.retranslation.indices.length &&
-            !window.confirm("Starting a new selection discards the unfinished retranslation checkpoint (saved chapter translations remain). Continue?")) return;
+            !window.confirm("Start a new selection instead of resuming? The previous run's unfinished chapter chunks and remaining selection will be discarded. Completed chapter translations and titles stay saved.")) return;
           retranslateButton.disabled = true;
           stopButton.hidden = false;
           stopButton.disabled = false;
@@ -702,9 +702,7 @@ async function refreshLibrary() {
             if (loadedJob) Object.assign(loadedJob, updated);
             [...chapterSelect.options].forEach((option, index) => {
               const section = updated.sections[index];
-              const excerpt = section.text.replace(/\s+/g, " ").trim().slice(0, 90);
-              const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
-              option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}${excerpt ? ` — source: ${excerpt}…` : ""}`;
+              option.textContent = chapterOptionLabel(section, index, updated.source_language);
             });
             chapterSelect.dispatchEvent(new Event("change"));
             showRun(updated.retranslation);
@@ -731,7 +729,7 @@ async function refreshLibrary() {
         });
         resumeButton.addEventListener("click", async () => {
           if (loadedJob?.retranslation?.status === "Failed" &&
-            !window.confirm("Resume uses the saved model and instructions. If it returned untranslated text, change the model and start a new selection once no chunks remain. Resume anyway?")) return;
+            !window.confirm("Resume uses the saved model and instructions. You can also select chapters and start a new run with a different model. Resume anyway?")) return;
           resumeButton.disabled = true;
           retranslateButton.disabled = true;
           stopButton.hidden = false;
@@ -744,8 +742,7 @@ async function refreshLibrary() {
             if (loadedJob) Object.assign(loadedJob, updated);
             [...chapterSelect.options].forEach((option, index) => {
               const section = updated.sections[index];
-              const title = sourceLanguageTitle(section.title, updated.source_language) ? "English title not saved" : section.title;
-              option.textContent = `${index + 1}. ${title} — ${translationStatus(section, updated.source_language)}`;
+              option.textContent = chapterOptionLabel(section, index, updated.source_language);
             });
             chapterSelect.dispatchEvent(new Event("change"));
             showRun(updated.retranslation);

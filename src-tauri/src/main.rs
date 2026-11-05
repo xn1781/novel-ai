@@ -5661,9 +5661,6 @@ async fn retranslate_job_sections(
         if indices.iter().any(|index| *index >= job.sections.len()) {
             return Err("One or more selected chapters no longer exist.".into());
         }
-        if job.retranslation.as_ref().is_some_and(|run| run.next < run.indices.len() && !run.chunks.is_empty()) {
-            return Err("Resume the unfinished chapter before starting a new selection (saved chunks would be lost).".into());
-        }
         let selected_model = if model.trim().is_empty() {
         job.model.clone()
     } else {
